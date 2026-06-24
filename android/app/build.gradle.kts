@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.localvault.localvault"
+    namespace = "com.mendmania.pocketmemory"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,7 +15,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.localvault.localvault"
+        applicationId = "com.mendmania.pocketmemory"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

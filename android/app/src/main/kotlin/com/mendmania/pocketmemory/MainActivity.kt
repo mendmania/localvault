@@ -1,4 +1,4 @@
-package com.localvault.localvault
+package com.mendmania.pocketmemory
 
 import android.app.Activity
 import android.content.Intent
