@@ -1,0 +1,486 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../app/lifecycle/vault_controller.dart';
+import '../../../app/theme/app_theme.dart';
+import '../../../core/database/app_database.dart';
+import '../../../core/widgets/async_action_button.dart';
+
+class CredentialDetailPage extends ConsumerStatefulWidget {
+  const CredentialDetailPage({required this.credentialId, super.key});
+
+  final String credentialId;
+
+  @override
+  ConsumerState<CredentialDetailPage> createState() =>
+      _CredentialDetailPageState();
+}
+
+class _CredentialDetailPageState extends ConsumerState<CredentialDetailPage> {
+  bool _revealed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final repository = ref.watch(credentialRepositoryProvider);
+    final settings = ref.watch(vaultControllerProvider).settings;
+    final clipboard = ref.watch(clipboardServiceProvider);
+    return FutureBuilder<Credential?>(
+      future: repository.byId(widget.credentialId),
+      builder: (context, snapshot) {
+        final credential = snapshot.data;
+        if (credential == null) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(credential.title),
+            actions: [
+              IconButton(
+                tooltip: 'Edit credential',
+                onPressed: () => Navigator.of(context)
+                    .push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            AddEditCredentialPage(credential: credential),
+                      ),
+                    )
+                    .then((_) => setState(() {})),
+                icon: const Icon(Icons.edit_rounded),
+              ),
+              IconButton(
+                tooltip: 'Delete credential',
+                onPressed: () =>
+                    _confirmDelete(context, repository, credential),
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+            ],
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            children: [
+              Hero(
+                tag: 'credential-icon-${credential.id}',
+                child: CircleAvatar(
+                  radius: 34,
+                  child: Icon(
+                    credential.isFavorite
+                        ? Icons.star_rounded
+                        : Icons.key_rounded,
+                    size: 34,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              _DetailTile(
+                label: 'Login',
+                value: credential.loginIdentifier ?? 'Not set',
+                trailing: credential.loginIdentifier == null
+                    ? null
+                    : IconButton(
+                        tooltip: 'Copy login',
+                        onPressed: () async {
+                          await clipboard.copyNonSecret(
+                            credential.loginIdentifier!,
+                          );
+                          if (context.mounted) {
+                            _showCopied(context, 'Login copied.');
+                          }
+                        },
+                        icon: const Icon(Icons.copy_rounded),
+                      ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Password',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Semantics(
+                        label: _revealed
+                            ? 'Password revealed'
+                            : 'Password hidden',
+                        child: AnimatedSwitcher(
+                          duration: MediaQuery.disableAnimationsOf(context)
+                              ? Duration.zero
+                              : const Duration(milliseconds: 180),
+                          child: Text(
+                            _revealed ? credential.secret : '••••••••••••',
+                            key: ValueKey(_revealed),
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                setState(() => _revealed = !_revealed),
+                            icon: Icon(
+                              _revealed
+                                  ? Icons.visibility_off_rounded
+                                  : Icons.visibility_rounded,
+                            ),
+                            label: Text(_revealed ? 'Hide' : 'Reveal'),
+                          ),
+                          FilledButton.icon(
+                            onPressed: () async {
+                              await clipboard.copySecret(
+                                credential.secret,
+                                settings.clipboardTimeout,
+                              );
+                              if (context.mounted) {
+                                _showCopied(
+                                  context,
+                                  'Password copied. Clipboard clearing is best-effort.',
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.copy_rounded),
+                            label: const Text('Copy password'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (credential.website != null) ...[
+                const SizedBox(height: 12),
+                _DetailTile(label: 'Website', value: credential.website!),
+              ],
+              if (credential.notes != null) ...[
+                const SizedBox(height: 12),
+                _DetailTile(label: 'Notes', value: credential.notes!),
+              ],
+              const SizedBox(height: 16),
+              Text(
+                'Clipboard clearing cannot guarantee that another app did not read copied content before it was cleared.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    dynamic repository,
+    Credential credential,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete credential?'),
+        content: Text('Delete "${credential.title}" from this vault.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await repository.delete(credential.id);
+      if (context.mounted) {
+        Navigator.pop(context);
+      }
+    }
+  }
+
+  void _showCopied(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _DetailTile extends StatelessWidget {
+  const _DetailTile({required this.label, required this.value, this.trailing});
+
+  final String label;
+  final String value;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        title: Text(label),
+        subtitle: Text(value),
+        trailing: trailing,
+      ),
+    );
+  }
+}
+
+class AddEditCredentialPage extends ConsumerStatefulWidget {
+  const AddEditCredentialPage({
+    this.credential,
+    this.initialPersonId,
+    super.key,
+  });
+
+  final Credential? credential;
+  final String? initialPersonId;
+
+  @override
+  ConsumerState<AddEditCredentialPage> createState() =>
+      _AddEditCredentialPageState();
+}
+
+class _AddEditCredentialPageState extends ConsumerState<AddEditCredentialPage> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _title;
+  late final TextEditingController _login;
+  late final TextEditingController _secret;
+  late final TextEditingController _website;
+  late final TextEditingController _notes;
+  bool _favorite = false;
+  bool _showSecret = false;
+  String? _personId;
+
+  @override
+  void initState() {
+    super.initState();
+    final credential = widget.credential;
+    _title = TextEditingController(text: credential?.title);
+    _login = TextEditingController(text: credential?.loginIdentifier);
+    _secret = TextEditingController(text: credential?.secret);
+    _website = TextEditingController(text: credential?.website);
+    _notes = TextEditingController(text: credential?.notes);
+    _favorite = credential?.isFavorite ?? false;
+    _personId = credential?.personId ?? widget.initialPersonId;
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _login.dispose();
+    _secret.dispose();
+    _website.dispose();
+    _notes.dispose();
+    super.dispose();
+  }
+
+  bool get _isDirty {
+    final credential = widget.credential;
+    if (credential == null) {
+      return [
+        _title.text,
+        _login.text,
+        _secret.text,
+        _website.text,
+        _notes.text,
+      ].any((value) => value.isNotEmpty);
+    }
+    return _title.text != credential.title ||
+        _login.text != (credential.loginIdentifier ?? '') ||
+        _secret.text != credential.secret ||
+        _website.text != (credential.website ?? '') ||
+        _notes.text != (credential.notes ?? '') ||
+        _favorite != credential.isFavorite ||
+        _personId != credential.personId;
+  }
+
+  Future<bool> _confirmDiscard() async {
+    if (!_isDirty) {
+      return true;
+    }
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text('Unsaved credential changes will be lost.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep editing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return discard == true;
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    final repository = ref.read(credentialRepositoryProvider);
+    final existing = widget.credential;
+    if (existing == null) {
+      await repository.create(
+        title: _title.text,
+        secret: _secret.text,
+        personId: _personId,
+        loginIdentifier: _login.text,
+        website: _website.text,
+        notes: _notes.text,
+        isFavorite: _favorite,
+      );
+    } else {
+      await repository.updateCredential(
+        id: existing.id,
+        title: _title.text,
+        secret: _secret.text,
+        personId: _personId,
+        loginIdentifier: _login.text,
+        website: _website.text,
+        notes: _notes.text,
+        isFavorite: _favorite,
+      );
+    }
+    HapticFeedback.lightImpact();
+    if (mounted) {
+      Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final peopleRepository = ref.watch(peopleRepositoryProvider);
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) {
+          return;
+        }
+        if (await _confirmDiscard() && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.credential == null ? 'Add credential' : 'Edit credential',
+          ),
+        ),
+        body: FutureBuilder<List<Person>>(
+          future: peopleRepository.all(),
+          builder: (context, snapshot) {
+            final people = snapshot.data ?? const <Person>[];
+            return ListView(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              children: [
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _title,
+                        decoration: const InputDecoration(labelText: 'Title'),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                            ? 'Required'
+                            : null,
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String?>(
+                        initialValue: _personId,
+                        decoration: const InputDecoration(labelText: 'Person'),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Unassigned'),
+                          ),
+                          ...people.map(
+                            (person) => DropdownMenuItem<String?>(
+                              value: person.id,
+                              child: Text(person.displayName),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) => setState(() => _personId = value),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _login,
+                        decoration: const InputDecoration(
+                          labelText: 'Login identifier',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _secret,
+                        obscureText: !_showSecret,
+                        decoration: InputDecoration(
+                          labelText: 'Password or secret',
+                          suffixIcon: IconButton(
+                            tooltip: _showSecret
+                                ? 'Hide secret'
+                                : 'Reveal secret',
+                            onPressed: () =>
+                                setState(() => _showSecret = !_showSecret),
+                            icon: Icon(
+                              _showSecret
+                                  ? Icons.visibility_off_rounded
+                                  : Icons.visibility_rounded,
+                            ),
+                          ),
+                        ),
+                        validator: (value) =>
+                            value == null || value.isEmpty ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _website,
+                        decoration: const InputDecoration(labelText: 'Website'),
+                        keyboardType: TextInputType.url,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _notes,
+                        decoration: const InputDecoration(labelText: 'Notes'),
+                        minLines: 3,
+                        maxLines: 5,
+                      ),
+                      const SizedBox(height: 8),
+                      SwitchListTile(
+                        value: _favorite,
+                        onChanged: (value) => setState(() => _favorite = value),
+                        title: const Text('Favorite'),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: AsyncActionButton(
+                          onPressed: _save,
+                          icon: const Icon(Icons.save_rounded),
+                          child: const Text('Save'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="file" path="vault.db" />
+    <exclude domain="file" path="vault.db-wal" />
+    <exclude domain="file" path="vault.db-shm" />
+    <exclude domain="file" path="vault_metadata.json" />
+    <exclude domain="database" path="vault.db" />
+    <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+</full-backup-content>
