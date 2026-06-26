@@ -51,32 +51,29 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   }
 
-  testWidgets(
-    'compact shell uses floating navigation bar and hides FAB on settings',
-    (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets('compact shell uses glass tabs and hides quick add on settings', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(wrap(const MainShell()));
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(wrap(const MainShell()));
+    await tester.pumpAndSettle();
 
-      expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.byType(NavigationRail), findsNothing);
-      expect(find.byTooltip('Quick add'), findsOneWidget);
+    expect(find.text('Vault'), findsWidgets);
+    expect(find.text('Search'), findsWidgets);
+    expect(find.text('Security'), findsWidgets);
+    expect(find.byTooltip('Quick add'), findsOneWidget);
 
-      final navRect = tester.getRect(find.byType(NavigationBar));
-      await tester.tapAt(
-        Offset(navRect.left + navRect.width * 5 / 6, navRect.center.dy),
-      );
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
 
-      expect(find.text('Biometric unlock'), findsOneWidget);
-      expect(find.byTooltip('Quick add'), findsNothing);
-      await disposeShell(tester);
-    },
-  );
+    expect(find.text('Biometric unlock'), findsOneWidget);
+    expect(find.byTooltip('Quick add'), findsNothing);
+    await disposeShell(tester);
+  });
 
   testWidgets('wide shell uses navigation rail and switches tabs', (
     tester,
@@ -89,8 +86,8 @@ void main() {
     await tester.pumpWidget(wrap(const MainShell()));
     await tester.pumpAndSettle();
 
-    expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.text('Search'), findsWidgets);
+    expect(find.text('Security'), findsWidgets);
 
     await tester.tap(find.byIcon(Icons.people_alt_rounded).first);
     await tester.pumpAndSettle();

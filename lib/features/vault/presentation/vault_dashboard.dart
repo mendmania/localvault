@@ -5,9 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/lifecycle/vault_controller.dart';
 import '../../../core/database/app_database.dart';
-import '../../../core/widgets/adaptive_controls.dart';
+import '../../../core/widgets/adaptive_controls.dart'
+    hide IconBadgeTone, TonedIconBadge;
 import '../../../core/widgets/empty_state.dart';
-import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/vault_ui.dart';
 import '../../people/presentation/people_pages.dart';
 import '../domain/search.dart';
 import 'credential_pages.dart';
@@ -94,14 +95,18 @@ class _VaultDashboardState extends ConsumerState<VaultDashboard> {
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                 children: [
-                  AdaptiveSearchField(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    hintText: 'Search vault',
-                    onClear: () {
-                      _debounce?.cancel();
-                      setState(() => _query = '');
-                    },
+                  GlassSurface(
+                    borderRadius: 24,
+                    padding: const EdgeInsets.all(8),
+                    child: AdaptiveSearchField(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                      hintText: 'Search vault',
+                      onClear: () {
+                        _debounce?.cancel();
+                        setState(() => _query = '');
+                      },
+                    ),
                   ),
                   if (people.isNotEmpty) ...[
                     const SizedBox(height: 12),
@@ -150,26 +155,50 @@ class _VaultDashboardState extends ConsumerState<VaultDashboard> {
                       ),
                     )
                   else ...[
+                    VaultSection(
+                      title: 'At a glance',
+                      child: _VaultSnapshot(
+                        credentials: credentials.length,
+                        people: people.length,
+                        measurements: measurements.length,
+                      ),
+                    ),
                     if (favoriteCredentials.isNotEmpty) ...[
-                      const SectionHeader('Favorites'),
-                      ...favoriteCredentials.map(
-                        (credential) => _CredentialCard(
-                          credential: credential,
-                          person: _personFor(people, credential.personId),
+                      VaultSection(
+                        title: 'Favorites',
+                        child: Column(
+                          children: favoriteCredentials
+                              .map(
+                                (credential) => _CredentialCard(
+                                  credential: credential,
+                                  person: _personFor(
+                                    people,
+                                    credential.personId,
+                                  ),
+                                ),
+                              )
+                              .toList(),
                         ),
                       ),
                     ],
                     if (otherCredentials.isNotEmpty ||
                         favoriteCredentials.isEmpty) ...[
-                      SectionHeader(
-                        favoriteCredentials.isEmpty
+                      VaultSection(
+                        title: favoriteCredentials.isEmpty
                             ? 'Credentials'
                             : 'Other credentials',
-                      ),
-                      ...otherCredentials.map(
-                        (credential) => _CredentialCard(
-                          credential: credential,
-                          person: _personFor(people, credential.personId),
+                        child: Column(
+                          children: otherCredentials
+                              .map(
+                                (credential) => _CredentialCard(
+                                  credential: credential,
+                                  person: _personFor(
+                                    people,
+                                    credential.personId,
+                                  ),
+                                ),
+                              )
+                              .toList(),
                         ),
                       ),
                     ],
@@ -193,6 +222,82 @@ class _VaultDashboardState extends ConsumerState<VaultDashboard> {
       }
     }
     return null;
+  }
+}
+
+class _VaultSnapshot extends StatelessWidget {
+  const _VaultSnapshot({
+    required this.credentials,
+    required this.people,
+    required this.measurements,
+  });
+
+  final int credentials;
+  final int people;
+  final int measurements;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _SnapshotItem(
+            icon: Icons.key_rounded,
+            label: 'Credentials',
+            value: credentials.toString(),
+          ),
+        ),
+        Expanded(
+          child: _SnapshotItem(
+            icon: Icons.people_alt_rounded,
+            label: 'People',
+            value: people.toString(),
+            tone: IconBadgeTone.secondary,
+          ),
+        ),
+        Expanded(
+          child: _SnapshotItem(
+            icon: Icons.straighten_rounded,
+            label: 'Measurements',
+            value: measurements.toString(),
+            tone: IconBadgeTone.tertiary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SnapshotItem extends StatelessWidget {
+  const _SnapshotItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.tone = IconBadgeTone.primary,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final IconBadgeTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TonedIconBadge(icon: icon, tone: tone, size: 36, iconSize: 20),
+        const SizedBox(height: 8),
+        Text(value, style: theme.textTheme.titleLarge),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
+    );
   }
 }
 
@@ -255,37 +360,32 @@ class _SearchResults extends StatelessWidget {
         ),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SectionHeader('Search results'),
-        ...results.map(
-          (result) => Card(
-            child: ListTile(
-              leading: TonedIconBadge(
+    return VaultSection(
+      title: 'Search results',
+      child: Column(
+        children: results
+            .map(
+              (result) => VaultListRow(
                 icon: switch (result.kind) {
                   'Credential' => Icons.key_rounded,
                   'Person' => Icons.person_rounded,
                   _ => Icons.straighten_rounded,
                 },
+                title: result.label,
+                subtitle: [
+                  result.kind,
+                  if (result.subtitle != null) result.subtitle!,
+                ].join(' • '),
                 tone: switch (result.kind) {
                   'Person' => IconBadgeTone.secondary,
                   'Measurement' => IconBadgeTone.tertiary,
                   _ => IconBadgeTone.primary,
                 },
+                onTap: () => _openResult(context, result),
               ),
-              title: Text(result.label),
-              subtitle: Text(
-                [
-                  result.kind,
-                  if (result.subtitle != null) result.subtitle!,
-                ].join(' • '),
-              ),
-              onTap: () => _openResult(context, result),
-            ),
-          ),
-        ),
-      ],
+            )
+            .toList(),
+      ),
     );
   }
 
@@ -344,33 +444,20 @@ class _CredentialCard extends StatelessWidget {
           ),
         );
       },
-      child: Card(
-        child: ListTile(
-          leading: Hero(
-            tag: 'credential-icon-${credential.id}',
-            child: TonedIconBadge(
-              icon: credential.isFavorite
-                  ? Icons.star_rounded
-                  : Icons.key_rounded,
-              tone: credential.isFavorite
-                  ? IconBadgeTone.tertiary
-                  : IconBadgeTone.primary,
-            ),
-          ),
-          title: Text(credential.title),
-          subtitle: Text(
-            [
-              if (credential.loginIdentifier != null)
-                credential.loginIdentifier!,
-              if (person != null) person!.displayName,
-              'Password hidden',
-            ].join(' • '),
-          ),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => CredentialDetailPage(credentialId: credential.id),
-            ),
+      child: VaultListRow(
+        icon: credential.isFavorite ? Icons.star_rounded : Icons.key_rounded,
+        tone: credential.isFavorite
+            ? IconBadgeTone.tertiary
+            : IconBadgeTone.primary,
+        title: credential.title,
+        subtitle: [
+          if (credential.loginIdentifier != null) credential.loginIdentifier!,
+          if (person != null) person!.displayName,
+          'Password hidden',
+        ].join(' • '),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => CredentialDetailPage(credentialId: credential.id),
           ),
         ),
       ),

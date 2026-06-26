@@ -42,7 +42,7 @@ void main() {
     expect(find.text('••••••••••••'), findsOneWidget);
     expect(find.text('widget-secret-value'), findsNothing);
 
-    await tester.tap(find.text('Reveal'));
+    await tester.tap(find.byTooltip('Reveal password'));
     await tester.pumpAndSettle();
 
     expect(find.text('widget-secret-value'), findsOneWidget);

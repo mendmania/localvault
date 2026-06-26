@@ -56,6 +56,7 @@ List<LocalSearchResult> searchVault({
     if (_containsAny(normalized, [
       person.displayName,
       person.relationshipLabel,
+      person.notes,
     ])) {
       results.add(
         LocalSearchResult(
@@ -73,6 +74,10 @@ List<LocalSearchResult> searchVault({
     if (_containsAny(normalized, [
       measurement.customLabel ?? template.label,
       owner?.displayName,
+      measurement.sizeLabel,
+      measurement.sizeSystem,
+      measurement.side,
+      measurement.notes,
     ])) {
       results.add(
         LocalSearchResult(

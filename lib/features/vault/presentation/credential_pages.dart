@@ -3,11 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/lifecycle/vault_controller.dart';
-import '../../../app/theme/app_theme.dart';
 import '../../../core/database/app_database.dart';
-import '../../../core/widgets/adaptive_controls.dart';
+import '../../../core/widgets/adaptive_controls.dart'
+    hide IconBadgeTone, TonedIconBadge;
 import '../../../core/widgets/async_action_button.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/vault_ui.dart';
 
 class CredentialDetailPage extends ConsumerStatefulWidget {
   const CredentialDetailPage({required this.credentialId, super.key});
@@ -75,109 +76,140 @@ class _CredentialDetailPageState extends ConsumerState<CredentialDetailPage> {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
-              Hero(
-                tag: 'credential-icon-${credential.id}',
-                child: TonedIconBadge(
-                  icon: credential.isFavorite
-                      ? Icons.star_rounded
-                      : Icons.key_rounded,
-                  tone: credential.isFavorite
-                      ? IconBadgeTone.tertiary
-                      : IconBadgeTone.primary,
-                  size: 68,
-                  iconSize: 34,
-                ),
-              ),
-              const SizedBox(height: 24),
-              _DetailTile(
-                label: 'Login',
-                value: credential.loginIdentifier ?? 'Not set',
-                trailing: credential.loginIdentifier == null
-                    ? null
-                    : IconButton(
-                        tooltip: 'Copy login',
-                        onPressed: () async {
-                          await clipboard.copyNonSecret(
-                            credential.loginIdentifier!,
-                          );
-                          if (context.mounted) {
-                            _showCopied(context, 'Login copied.');
-                          }
-                        },
-                        icon: const Icon(Icons.copy_rounded),
+              GlassSurface(
+                borderRadius: 28,
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Hero(
+                      tag: 'credential-icon-${credential.id}',
+                      child: TonedIconBadge(
+                        icon: credential.isFavorite
+                            ? Icons.star_rounded
+                            : Icons.key_rounded,
+                        tone: credential.isFavorite
+                            ? IconBadgeTone.tertiary
+                            : IconBadgeTone.primary,
+                        size: 58,
+                        iconSize: 30,
                       ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Password',
-                        style: Theme.of(context).textTheme.labelLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Semantics(
-                        label: _revealed
-                            ? 'Password revealed'
-                            : 'Password hidden',
-                        child: AnimatedSwitcher(
-                          duration: MediaQuery.disableAnimationsOf(context)
-                              ? Duration.zero
-                              : const Duration(milliseconds: 180),
-                          child: Text(
-                            _revealed ? credential.secret : '••••••••••••',
-                            key: ValueKey(_revealed),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            credential.title,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                setState(() => _revealed = !_revealed),
-                            icon: Icon(
-                              _revealed
-                                  ? Icons.visibility_off_rounded
-                                  : Icons.visibility_rounded,
-                            ),
-                            label: Text(_revealed ? 'Hide' : 'Reveal'),
-                          ),
-                          FilledButton.icon(
-                            onPressed: () async {
-                              await clipboard.copySecret(
-                                credential.secret,
-                                settings.clipboardTimeout,
-                              );
-                              if (context.mounted) {
-                                _showCopied(
-                                  context,
-                                  'Password copied. Clipboard clearing is best-effort.',
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.copy_rounded),
-                            label: const Text('Copy password'),
+                          const SizedBox(height: 4),
+                          Text(
+                            credential.loginIdentifier ?? 'Password hidden',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+              ),
+              const SizedBox(height: 24),
+              DetailFieldRow(
+                label: 'Login',
+                value: credential.loginIdentifier ?? 'Not set',
+                icon: Icons.account_circle_rounded,
+                actions: credential.loginIdentifier == null
+                    ? const []
+                    : [
+                        IconButton(
+                          tooltip: 'Copy login',
+                          onPressed: () async {
+                            await clipboard.copyNonSecret(
+                              credential.loginIdentifier!,
+                            );
+                            if (context.mounted) {
+                              _showCopied(context, 'Login copied.');
+                            }
+                          },
+                          icon: const Icon(Icons.copy_rounded),
+                        ),
+                      ],
+              ),
+              const SizedBox(height: 12),
+              DetailFieldRow(
+                label: 'Password',
+                value: _revealed ? credential.secret : '••••••••••••',
+                icon: Icons.password_rounded,
+                obscured: !_revealed,
+                actions: [
+                  IconButton(
+                    tooltip: _revealed ? 'Hide password' : 'Reveal password',
+                    onPressed: () => setState(() => _revealed = !_revealed),
+                    icon: Icon(
+                      _revealed
+                          ? Icons.visibility_off_rounded
+                          : Icons.visibility_rounded,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Show large',
+                    onPressed: _revealed
+                        ? () => showLargeValueSheet(
+                            context: context,
+                            title: 'Password',
+                            value: credential.secret,
+                          )
+                        : null,
+                    icon: const Icon(Icons.text_increase_rounded),
+                  ),
+                  IconButton.filled(
+                    tooltip: 'Copy password',
+                    onPressed: () async {
+                      await clipboard.copySecret(
+                        credential.secret,
+                        settings.clipboardTimeout,
+                      );
+                      if (context.mounted) {
+                        _showCopied(
+                          context,
+                          'Password copied. Clipboard clearing is best-effort.',
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.copy_rounded),
+                  ),
+                ],
               ),
               if (credential.website != null) ...[
                 const SizedBox(height: 12),
-                _DetailTile(label: 'Website', value: credential.website!),
+                DetailFieldRow(
+                  label: 'Website',
+                  value: credential.website!,
+                  icon: Icons.language_rounded,
+                  actions: [
+                    IconButton(
+                      tooltip: 'Copy website',
+                      onPressed: () async {
+                        await clipboard.copyNonSecret(credential.website!);
+                        if (context.mounted) {
+                          _showCopied(context, 'Website copied.');
+                        }
+                      },
+                      icon: const Icon(Icons.copy_rounded),
+                    ),
+                  ],
+                ),
               ],
               if (credential.notes != null) ...[
                 const SizedBox(height: 12),
-                _DetailTile(label: 'Notes', value: credential.notes!),
+                DetailFieldRow(
+                  label: 'Notes',
+                  value: credential.notes!,
+                  icon: Icons.notes_rounded,
+                ),
               ],
               const SizedBox(height: 16),
               Text(
@@ -215,25 +247,6 @@ class _CredentialDetailPageState extends ConsumerState<CredentialDetailPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
-  }
-}
-
-class _DetailTile extends StatelessWidget {
-  const _DetailTile({required this.label, required this.value, this.trailing});
-
-  final String label;
-  final String value;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        title: Text(label),
-        subtitle: Text(value),
-        trailing: trailing,
-      ),
-    );
   }
 }
 
@@ -383,7 +396,7 @@ class _AddEditCredentialPageState extends ConsumerState<AddEditCredentialPage> {
                 ? _personId
                 : null;
             return ListView(
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
               children: [
                 Form(
                   key: _formKey,
@@ -467,21 +480,22 @@ class _AddEditCredentialPageState extends ConsumerState<AddEditCredentialPage> {
                         onChanged: (value) => setState(() => _favorite = value),
                         title: const Text('Favorite'),
                       ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: AsyncActionButton(
-                          onPressed: _save,
-                          icon: const Icon(Icons.save_rounded),
-                          child: const Text('Save'),
-                        ),
-                      ),
                     ],
                   ),
                 ),
               ],
             );
           },
+        ),
+        bottomNavigationBar: StickyActionBar(
+          child: SizedBox(
+            width: double.infinity,
+            child: AsyncActionButton(
+              onPressed: _save,
+              icon: const Icon(Icons.save_rounded),
+              child: const Text('Save'),
+            ),
+          ),
         ),
       ),
     );

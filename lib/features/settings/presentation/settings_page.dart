@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/lifecycle/vault_controller.dart';
-import '../../../core/widgets/adaptive_controls.dart';
+import '../../../core/widgets/adaptive_controls.dart'
+    hide IconBadgeTone, TonedIconBadge;
 import '../../../core/widgets/async_action_button.dart';
-import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/vault_ui.dart';
 import '../../settings/domain/settings_models.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -29,114 +30,135 @@ class SettingsPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          const SectionHeader('Security'),
-          SwitchListTile.adaptive(
-            secondary: const Icon(Icons.fingerprint_rounded),
-            title: const Text('Biometric unlock'),
-            subtitle: const Text(
-              'Device-protected quick unlock, not recovery.',
-            ),
-            value: settings.biometricUnlockEnabled,
-            onChanged: (value) async {
-              try {
-                if (value) {
-                  await controller.enableBiometricUnlock();
-                } else {
-                  await controller.disableBiometricUnlock();
-                }
-              } catch (_) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Biometric key protection is unavailable on this device.',
-                      ),
-                    ),
-                  );
-                }
-              }
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.password_rounded),
-            title: const Text('Change master password'),
-            subtitle: const Text('Requires the current master password.'),
-            onTap: () => showDialog<void>(
-              context: context,
-              builder: (_) => const _ChangeMasterPasswordDialog(),
-            ),
-          ),
-          const SectionHeader('Preferences'),
-          _EnumTile<AutoLockTimeout>(
-            icon: Icons.timer_rounded,
-            title: 'Auto-lock timeout',
-            value: settings.autoLockTimeout,
-            values: AutoLockTimeout.values,
-            label: (value) => value.label,
-            onChanged: (value) => controller.updateSettings(
-              settings.copyWith(autoLockTimeout: value),
+          VaultSection(
+            title: 'Security',
+            child: Column(
+              children: [
+                SwitchListTile.adaptive(
+                  secondary: const Icon(Icons.fingerprint_rounded),
+                  title: const Text('Biometric unlock'),
+                  subtitle: const Text(
+                    'Device-protected quick unlock, not recovery.',
+                  ),
+                  value: settings.biometricUnlockEnabled,
+                  onChanged: (value) async {
+                    try {
+                      if (value) {
+                        await controller.enableBiometricUnlock();
+                      } else {
+                        await controller.disableBiometricUnlock();
+                      }
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Biometric key protection is unavailable on this device.',
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+                VaultListRow(
+                  icon: Icons.password_rounded,
+                  title: 'Change master password',
+                  subtitle: 'Requires the current master password.',
+                  onTap: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => const _ChangeMasterPasswordDialog(),
+                  ),
+                ),
+              ],
             ),
           ),
-          _DurationTile(
-            value: settings.clipboardTimeout,
-            onChanged: (duration) => controller.updateSettings(
-              settings.copyWith(clipboardTimeout: duration),
+          VaultSection(
+            title: 'Preferences',
+            child: Column(
+              children: [
+                _EnumTile<AutoLockTimeout>(
+                  icon: Icons.timer_rounded,
+                  title: 'Auto-lock timeout',
+                  value: settings.autoLockTimeout,
+                  values: AutoLockTimeout.values,
+                  label: (value) => value.label,
+                  onChanged: (value) => controller.updateSettings(
+                    settings.copyWith(autoLockTimeout: value),
+                  ),
+                ),
+                _DurationTile(
+                  value: settings.clipboardTimeout,
+                  onChanged: (duration) => controller.updateSettings(
+                    settings.copyWith(clipboardTimeout: duration),
+                  ),
+                ),
+                _EnumTile<PreferredUnitSystem>(
+                  icon: Icons.straighten_rounded,
+                  title: 'Preferred units',
+                  value: settings.preferredUnitSystem,
+                  values: PreferredUnitSystem.values,
+                  label: (value) => value.label,
+                  onChanged: (value) => controller.updateSettings(
+                    settings.copyWith(preferredUnitSystem: value),
+                  ),
+                ),
+                _EnumTile<AppThemeSelection>(
+                  icon: Icons.contrast_rounded,
+                  title: 'Theme',
+                  value: settings.themeSelection,
+                  values: AppThemeSelection.values,
+                  label: (value) => value.label,
+                  onChanged: (value) => controller.updateSettings(
+                    settings.copyWith(themeSelection: value),
+                  ),
+                ),
+              ],
             ),
           ),
-          _EnumTile<PreferredUnitSystem>(
-            icon: Icons.straighten_rounded,
-            title: 'Preferred units',
-            value: settings.preferredUnitSystem,
-            values: PreferredUnitSystem.values,
-            label: (value) => value.label,
-            onChanged: (value) => controller.updateSettings(
-              settings.copyWith(preferredUnitSystem: value),
+          VaultSection(
+            title: 'Data & backups',
+            child: Column(
+              children: [
+                VaultListRow(
+                  icon: Icons.upload_file_rounded,
+                  title: 'Encrypted export',
+                  subtitle: 'Create an encrypted .lvbackup file.',
+                  tone: IconBadgeTone.tertiary,
+                  onTap: () => _showBackupDialog(context, ref, export: true),
+                ),
+                VaultListRow(
+                  icon: Icons.restore_page_rounded,
+                  title: 'Encrypted import',
+                  subtitle: 'Validate backup before changing this vault.',
+                  tone: IconBadgeTone.tertiary,
+                  onTap: () => _showBackupDialog(context, ref, export: false),
+                ),
+              ],
             ),
           ),
-          _EnumTile<AppThemeSelection>(
-            icon: Icons.contrast_rounded,
-            title: 'Theme',
-            value: settings.themeSelection,
-            values: AppThemeSelection.values,
-            label: (value) => value.label,
-            onChanged: (value) => controller.updateSettings(
-              settings.copyWith(themeSelection: value),
+          VaultSection(
+            title: 'Privacy',
+            child: VaultListRow(
+              icon: Icons.privacy_tip_rounded,
+              title: 'Privacy explanation',
+              subtitle: 'Local-only storage and limitations.',
+              tone: IconBadgeTone.secondary,
+              onTap: () => showDialog<void>(
+                context: context,
+                builder: (_) => const _PrivacyDialog(),
+              ),
             ),
           ),
-          const SectionHeader('Data & backups'),
-          ListTile(
-            leading: const Icon(Icons.upload_file_rounded),
-            title: const Text('Encrypted export'),
-            subtitle: const Text('Create an encrypted .lvbackup file.'),
-            onTap: () => _showBackupDialog(context, ref, export: true),
-          ),
-          ListTile(
-            leading: const Icon(Icons.restore_page_rounded),
-            title: const Text('Encrypted import'),
-            subtitle: const Text('Validate backup before changing this vault.'),
-            onTap: () => _showBackupDialog(context, ref, export: false),
-          ),
-          const SectionHeader('Privacy'),
-          ListTile(
-            leading: const Icon(Icons.privacy_tip_rounded),
-            title: const Text('Privacy explanation'),
-            subtitle: const Text('Local-only storage and limitations.'),
-            onTap: () => showDialog<void>(
-              context: context,
-              builder: (_) => const _PrivacyDialog(),
+          VaultSection(
+            title: 'Danger zone',
+            child: VaultListRow(
+              icon: Icons.delete_forever_rounded,
+              title: 'Delete vault',
+              subtitle: 'Remove local encrypted data from this device.',
+              tone: IconBadgeTone.error,
+              onTap: () => _confirmDeleteVault(context, ref),
             ),
-          ),
-          const SectionHeader('Danger zone'),
-          ListTile(
-            leading: Icon(
-              Icons.delete_forever_rounded,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            title: const Text('Delete vault'),
-            subtitle: const Text(
-              'Remove local encrypted data from this device.',
-            ),
-            onTap: () => _confirmDeleteVault(context, ref),
           ),
         ],
       ),

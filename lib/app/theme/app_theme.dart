@@ -11,6 +11,9 @@ class AppSpacing {
 class AppRadii {
   static const sm = 8.0;
   static const md = 12.0;
+  static const input = 16.0;
+  static const lg = 24.0;
+  static const nav = 28.0;
 }
 
 ThemeData buildLocalVaultTheme(Brightness brightness) {
@@ -40,8 +43,8 @@ ThemeData buildLocalVaultTheme(Brightness brightness) {
 
   return base.copyWith(
     scaffoldBackgroundColor: brightness == Brightness.light
-        ? const Color(0xFFF6F8F5)
-        : const Color(0xFF0F1512),
+        ? const Color(0xFFF7F8FA)
+        : const Color(0xFF101214),
     textTheme: textTheme,
     visualDensity: VisualDensity.standard,
     appBarTheme: AppBarTheme(
@@ -54,7 +57,7 @@ ThemeData buildLocalVaultTheme(Brightness brightness) {
     ),
     cardTheme: CardThemeData(
       elevation: 0,
-      color: scheme.surfaceContainerLow,
+      color: scheme.surface,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -63,13 +66,16 @@ ThemeData buildLocalVaultTheme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: scheme.surfaceContainerLow,
+      fillColor: scheme.surface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: _inputBorder(scheme.outlineVariant),
       enabledBorder: _inputBorder(scheme.outlineVariant),
-      focusedBorder: _inputBorder(scheme.primary, 1.5),
+      focusedBorder: _inputBorder(scheme.primary, 1.8),
       errorBorder: _inputBorder(scheme.error),
-      focusedErrorBorder: _inputBorder(scheme.error, 1.5),
+      focusedErrorBorder: _inputBorder(scheme.error, 1.8),
       floatingLabelStyle: TextStyle(color: scheme.primary),
+      prefixIconColor: scheme.onSurfaceVariant,
+      suffixIconColor: scheme.onSurfaceVariant,
     ),
     listTileTheme: ListTileThemeData(
       iconColor: scheme.onSurfaceVariant,
@@ -81,33 +87,48 @@ ThemeData buildLocalVaultTheme(Brightness brightness) {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        minimumSize: const Size(64, 48),
+        minimumSize: const Size(64, 50),
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.sm),
+          borderRadius: BorderRadius.circular(AppRadii.input),
         ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(64, 48),
+        minimumSize: const Size(64, 50),
         foregroundColor: scheme.primary,
         side: BorderSide(color: scheme.outline),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.sm),
+          borderRadius: BorderRadius.circular(AppRadii.input),
         ),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: scheme.primary),
+      style: TextButton.styleFrom(
+        foregroundColor: scheme.primary,
+        minimumSize: const Size(48, 48),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.input),
+        ),
+      ),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(
+        foregroundColor: scheme.onSurfaceVariant,
+        minimumSize: const Size(48, 48),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.input),
+        ),
+      ),
     ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: scheme.tertiaryContainer,
       foregroundColor: scheme.onTertiaryContainer,
       elevation: 3,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadii.md),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
@@ -152,6 +173,23 @@ ThemeData buildLocalVaultTheme(Brightness brightness) {
       ),
       labelStyle: TextStyle(color: scheme.onSurface),
     ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        minimumSize: WidgetStateProperty.all(const Size(64, 48)),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.input),
+          ),
+        ),
+        side: WidgetStateProperty.resolveWith((states) {
+          return BorderSide(
+            color: states.contains(WidgetState.selected)
+                ? scheme.primary
+                : scheme.outlineVariant,
+          );
+        }),
+      ),
+    ),
     dialogTheme: DialogThemeData(
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
@@ -175,6 +213,11 @@ ThemeData buildLocalVaultTheme(Brightness brightness) {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadii.sm),
       ),
+    ),
+    dividerTheme: DividerThemeData(
+      color: scheme.outlineVariant,
+      thickness: 1,
+      space: 1,
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((states) {
@@ -208,31 +251,31 @@ ThemeData buildLocalVaultTheme(Brightness brightness) {
 
 ColorScheme _localVaultColorScheme(Brightness brightness) {
   final seed = ColorScheme.fromSeed(
-    seedColor: const Color(0xFF245D4E),
+    seedColor: const Color(0xFF276EF1),
     brightness: brightness,
   );
   if (brightness == Brightness.dark) {
     return seed.copyWith(
-      primary: const Color(0xFF96D3C0),
-      onPrimary: const Color(0xFF00382E),
-      primaryContainer: const Color(0xFF154D41),
-      onPrimaryContainer: const Color(0xFFD5EAE2),
-      secondary: const Color(0xFFD7C79E),
-      onSecondary: const Color(0xFF3B3018),
-      secondaryContainer: const Color(0xFF55482F),
-      onSecondaryContainer: const Color(0xFFEEE1C6),
-      tertiary: const Color(0xFFE7A18A),
-      onTertiary: const Color(0xFF4E1E12),
-      tertiaryContainer: const Color(0xFF6B3525),
-      onTertiaryContainer: const Color(0xFFFFDACE),
-      surface: const Color(0xFF151C18),
-      onSurface: const Color(0xFFE7EFE9),
-      onSurfaceVariant: const Color(0xFFBDC9C1),
-      surfaceContainerLow: const Color(0xFF1A221E),
-      surfaceContainer: const Color(0xFF202A25),
-      surfaceContainerHighest: const Color(0xFF2A352F),
-      outline: const Color(0xFF8A978F),
-      outlineVariant: const Color(0xFF3F4B44),
+      primary: const Color(0xFFA8C7FF),
+      onPrimary: const Color(0xFF00315D),
+      primaryContainer: const Color(0xFF114E91),
+      onPrimaryContainer: const Color(0xFFD7E3FF),
+      secondary: const Color(0xFF86D6A3),
+      onSecondary: const Color(0xFF07391E),
+      secondaryContainer: const Color(0xFF1F5B35),
+      onSecondaryContainer: const Color(0xFFD8F7DF),
+      tertiary: const Color(0xFFF3C66B),
+      onTertiary: const Color(0xFF422C00),
+      tertiaryContainer: const Color(0xFF62450A),
+      onTertiaryContainer: const Color(0xFFFFE3A7),
+      surface: const Color(0xFF17191C),
+      onSurface: const Color(0xFFE9ECF1),
+      onSurfaceVariant: const Color(0xFFC0C7D2),
+      surfaceContainerLow: const Color(0xFF1D2024),
+      surfaceContainer: const Color(0xFF23272C),
+      surfaceContainerHighest: const Color(0xFF30353B),
+      outline: const Color(0xFF929AA6),
+      outlineVariant: const Color(0xFF444B55),
       error: const Color(0xFFFFB4AB),
       onError: const Color(0xFF690005),
       errorContainer: const Color(0xFF93000A),
@@ -240,26 +283,26 @@ ColorScheme _localVaultColorScheme(Brightness brightness) {
     );
   }
   return seed.copyWith(
-    primary: const Color(0xFF245D4E),
+    primary: const Color(0xFF276EF1),
     onPrimary: const Color(0xFFFFFFFF),
-    primaryContainer: const Color(0xFFD5EAE2),
-    onPrimaryContainer: const Color(0xFF07251E),
-    secondary: const Color(0xFF6D6045),
+    primaryContainer: const Color(0xFFDCE8FF),
+    onPrimaryContainer: const Color(0xFF072C61),
+    secondary: const Color(0xFF1C7C3F),
     onSecondary: const Color(0xFFFFFFFF),
-    secondaryContainer: const Color(0xFFEEE1C6),
-    onSecondaryContainer: const Color(0xFF27200F),
-    tertiary: const Color(0xFF8A4F3C),
+    secondaryContainer: const Color(0xFFDDF6E3),
+    onSecondaryContainer: const Color(0xFF07391E),
+    tertiary: const Color(0xFF9A6A00),
     onTertiary: const Color(0xFFFFFFFF),
-    tertiaryContainer: const Color(0xFFFFDACE),
-    onTertiaryContainer: const Color(0xFF351105),
+    tertiaryContainer: const Color(0xFFFFE4A8),
+    onTertiaryContainer: const Color(0xFF332200),
     surface: const Color(0xFFFFFFFF),
-    onSurface: const Color(0xFF17201B),
-    onSurfaceVariant: const Color(0xFF4E5A53),
-    surfaceContainerLow: const Color(0xFFF1F4F0),
-    surfaceContainer: const Color(0xFFEBEFEB),
-    surfaceContainerHighest: const Color(0xFFE0E6E1),
-    outline: const Color(0xFF718078),
-    outlineVariant: const Color(0xFFC9D3CC),
+    onSurface: const Color(0xFF17191D),
+    onSurfaceVariant: const Color(0xFF59616C),
+    surfaceContainerLow: const Color(0xFFF3F5F8),
+    surfaceContainer: const Color(0xFFEAEEF4),
+    surfaceContainerHighest: const Color(0xFFDCE2EA),
+    outline: const Color(0xFF747D8A),
+    outlineVariant: const Color(0xFFC8D0DB),
     error: const Color(0xFFB3261E),
     onError: const Color(0xFFFFFFFF),
     errorContainer: const Color(0xFFFFDAD6),
@@ -269,7 +312,7 @@ ColorScheme _localVaultColorScheme(Brightness brightness) {
 
 OutlineInputBorder _inputBorder(Color color, [double width = 1]) {
   return OutlineInputBorder(
-    borderRadius: BorderRadius.circular(AppRadii.sm),
+    borderRadius: BorderRadius.circular(AppRadii.input),
     borderSide: BorderSide(color: color, width: width),
   );
 }

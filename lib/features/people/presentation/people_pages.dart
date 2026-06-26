@@ -3,12 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/lifecycle/vault_controller.dart';
-import '../../../app/theme/app_theme.dart';
 import '../../../core/database/app_database.dart';
-import '../../../core/widgets/adaptive_controls.dart';
+import '../../../core/widgets/adaptive_controls.dart'
+    hide IconBadgeTone, TonedIconBadge;
 import '../../../core/widgets/async_action_button.dart';
 import '../../../core/widgets/empty_state.dart';
-import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/vault_ui.dart';
 import '../../measurements/domain/measurement_models.dart';
 import '../../measurements/domain/unit_conversion.dart';
 import '../../vault/presentation/credential_pages.dart';
@@ -46,21 +46,14 @@ class PeopleListPage extends ConsumerWidget {
             separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final person = people[index];
-              return Card(
-                child: ListTile(
-                  leading: const TonedIconBadge(
-                    icon: Icons.person_rounded,
-                    tone: IconBadgeTone.secondary,
-                  ),
-                  title: Text(person.displayName),
-                  subtitle: Text(
-                    person.relationshipLabel ?? 'No relationship label',
-                  ),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PersonProfilePage(personId: person.id),
-                    ),
+              return VaultListRow(
+                icon: Icons.person_rounded,
+                tone: IconBadgeTone.secondary,
+                title: person.displayName,
+                subtitle: person.relationshipLabel ?? 'No relationship label',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PersonProfilePage(personId: person.id),
                   ),
                 ),
               );
@@ -176,7 +169,7 @@ class _AddEditPersonPageState extends ConsumerState<AddEditPersonPage> {
           title: Text(widget.person == null ? 'Add person' : 'Edit person'),
         ),
         body: ListView(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
           children: [
             Form(
               key: _formKey,
@@ -205,19 +198,20 @@ class _AddEditPersonPageState extends ConsumerState<AddEditPersonPage> {
                     minLines: 3,
                     maxLines: 5,
                   ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: AsyncActionButton(
-                      onPressed: _save,
-                      icon: const Icon(Icons.save_rounded),
-                      child: const Text('Save'),
-                    ),
-                  ),
                 ],
               ),
             ),
           ],
+        ),
+        bottomNavigationBar: StickyActionBar(
+          child: SizedBox(
+            width: double.infinity,
+            child: AsyncActionButton(
+              onPressed: _save,
+              icon: const Icon(Icons.save_rounded),
+              child: const Text('Save'),
+            ),
+          ),
         ),
       ),
     );
@@ -288,59 +282,49 @@ class PersonProfilePage extends ConsumerWidget {
                 const SizedBox(height: 8),
                 Text(person.notes!),
               ],
-              const SectionHeader('Measurements'),
               StreamBuilder<List<Measurement>>(
                 stream: measurementRepository.watchForPerson(person.id),
                 builder: (context, snapshot) {
                   final measurements = snapshot.data ?? const <Measurement>[];
-                  if (measurements.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                AddEditMeasurementPage(personId: person.id),
+                  return VaultSection(
+                    title: 'Measurements',
+                    trailing: TextButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              AddEditMeasurementPage(personId: person.id),
+                        ),
+                      ),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Add'),
+                    ),
+                    child: measurements.isEmpty
+                        ? Text(
+                            'No measurements saved.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          )
+                        : Column(
+                            children: measurements
+                                .map(
+                                  (measurement) => _MeasurementCard(
+                                    measurement: measurement,
+                                    metric:
+                                        settings.preferredUnitSystem.name ==
+                                        'metric',
+                                  ),
+                                )
+                                .toList(),
                           ),
-                        ),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Add measurement'),
-                      ),
-                    );
-                  }
-                  return Column(
-                    children: [
-                      ...measurements.map(
-                        (measurement) => _MeasurementCard(
-                          measurement: measurement,
-                          metric: settings.preferredUnitSystem.name == 'metric',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: OutlinedButton.icon(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  AddEditMeasurementPage(personId: person.id),
-                            ),
-                          ),
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Add measurement'),
-                        ),
-                      ),
-                    ],
                   );
                 },
               ),
-              const SectionHeader('Credentials'),
               FutureBuilder<List<Credential>>(
                 future: credentialRepository.forPerson(person.id),
                 builder: (context, snapshot) {
                   final credentials = snapshot.data ?? const <Credential>[];
-                  if (credentials.isEmpty) {
-                    return OutlinedButton.icon(
+                  return VaultSection(
+                    title: 'Credentials',
+                    trailing: TextButton.icon(
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) =>
@@ -348,31 +332,31 @@ class PersonProfilePage extends ConsumerWidget {
                         ),
                       ),
                       icon: const Icon(Icons.add_rounded),
-                      label: const Text('Add credential'),
-                    );
-                  }
-                  return Column(
-                    children: credentials
-                        .map(
-                          (credential) => Card(
-                            child: ListTile(
-                              leading: const TonedIconBadge(
-                                icon: Icons.key_rounded,
-                              ),
-                              title: Text(credential.title),
-                              subtitle: const Text('Password hidden'),
-                              trailing: const Icon(Icons.chevron_right_rounded),
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => CredentialDetailPage(
-                                    credentialId: credential.id,
+                      label: const Text('Add'),
+                    ),
+                    child: credentials.isEmpty
+                        ? Text(
+                            'No credentials linked.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          )
+                        : Column(
+                            children: credentials
+                                .map(
+                                  (credential) => VaultListRow(
+                                    icon: Icons.key_rounded,
+                                    title: credential.title,
+                                    subtitle: 'Password hidden',
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => CredentialDetailPage(
+                                          credentialId: credential.id,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ),
+                                )
+                                .toList(),
                           ),
-                        )
-                        .toList(),
                   );
                 },
               ),
@@ -451,26 +435,22 @@ class _MeasurementCard extends StatelessWidget {
             height: measurement.type == 'height',
             metric: metric,
           );
-    return Card(
-      child: ListTile(
-        leading: const TonedIconBadge(
-          icon: Icons.straighten_rounded,
-          tone: IconBadgeTone.tertiary,
-        ),
-        title: Text(title),
-        subtitle: Text('${template.valueKind.name} • ${measurement.side}'),
-        trailing: AnimatedSwitcher(
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 180),
-          child: Text(value, key: ValueKey(value)),
-        ),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AddEditMeasurementPage(
-              personId: measurement.personId,
-              measurement: measurement,
-            ),
+    return VaultListRow(
+      icon: Icons.straighten_rounded,
+      tone: IconBadgeTone.tertiary,
+      title: title,
+      subtitle: '${template.valueKind.name} • ${measurement.side}',
+      trailing: AnimatedSwitcher(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
+        child: Text(value, key: ValueKey(value)),
+      ),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AddEditMeasurementPage(
+            personId: measurement.personId,
+            measurement: measurement,
           ),
         ),
       ),
@@ -619,7 +599,7 @@ class _AddEditMeasurementPageState
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         children: [
           Form(
             key: _formKey,
@@ -687,19 +667,20 @@ class _AddEditMeasurementPageState
                   minLines: 3,
                   maxLines: 5,
                 ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: AsyncActionButton(
-                    onPressed: _save,
-                    icon: const Icon(Icons.save_rounded),
-                    child: const Text('Save'),
-                  ),
-                ),
               ],
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: StickyActionBar(
+        child: SizedBox(
+          width: double.infinity,
+          child: AsyncActionButton(
+            onPressed: _save,
+            icon: const Icon(Icons.save_rounded),
+            child: const Text('Save'),
+          ),
+        ),
       ),
     );
   }
