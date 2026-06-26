@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_controls.dart';
+
 class EmptyState extends StatelessWidget {
   const EmptyState({
     required this.icon,
@@ -23,7 +25,7 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: theme.colorScheme.primary),
+            TonedIconBadge(icon: icon, size: 56, iconSize: 30),
             const SizedBox(height: 16),
             Text(title, style: theme.textTheme.titleLarge),
             const SizedBox(height: 8),

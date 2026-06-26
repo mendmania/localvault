@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/lifecycle/vault_controller.dart';
+import '../../../core/widgets/adaptive_controls.dart';
 import '../../../core/widgets/async_action_button.dart';
+import '../../../core/widgets/section_header.dart';
 import '../../settings/domain/settings_models.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -27,7 +29,8 @@ class SettingsPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          SwitchListTile(
+          const SectionHeader('Security'),
+          SwitchListTile.adaptive(
             secondary: const Icon(Icons.fingerprint_rounded),
             title: const Text('Biometric unlock'),
             subtitle: const Text(
@@ -54,7 +57,16 @@ class SettingsPage extends ConsumerWidget {
               }
             },
           ),
-          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.password_rounded),
+            title: const Text('Change master password'),
+            subtitle: const Text('Requires the current master password.'),
+            onTap: () => showDialog<void>(
+              context: context,
+              builder: (_) => const _ChangeMasterPasswordDialog(),
+            ),
+          ),
+          const SectionHeader('Preferences'),
           _EnumTile<AutoLockTimeout>(
             icon: Icons.timer_rounded,
             title: 'Auto-lock timeout',
@@ -91,7 +103,7 @@ class SettingsPage extends ConsumerWidget {
               settings.copyWith(themeSelection: value),
             ),
           ),
-          const Divider(),
+          const SectionHeader('Data & backups'),
           ListTile(
             leading: const Icon(Icons.upload_file_rounded),
             title: const Text('Encrypted export'),
@@ -104,7 +116,7 @@ class SettingsPage extends ConsumerWidget {
             subtitle: const Text('Validate backup before changing this vault.'),
             onTap: () => _showBackupDialog(context, ref, export: false),
           ),
-          const Divider(),
+          const SectionHeader('Privacy'),
           ListTile(
             leading: const Icon(Icons.privacy_tip_rounded),
             title: const Text('Privacy explanation'),
@@ -114,6 +126,7 @@ class SettingsPage extends ConsumerWidget {
               builder: (_) => const _PrivacyDialog(),
             ),
           ),
+          const SectionHeader('Danger zone'),
           ListTile(
             leading: Icon(
               Icons.delete_forever_rounded,
@@ -145,39 +158,75 @@ class SettingsPage extends ConsumerWidget {
     final controller = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete vault?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'This removes the local encrypted vault and metadata from this device.',
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(labelText: 'Type DELETE'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(context, controller.text == 'DELETE'),
-            child: const Text('Delete vault'),
-          ),
-        ],
-      ),
+      builder: (context) => _DeleteVaultDialog(controller: controller),
     );
     controller.dispose();
     if (confirmed == true) {
       await ref.read(vaultControllerProvider.notifier).deleteVault();
     }
+  }
+}
+
+class _DeleteVaultDialog extends StatefulWidget {
+  const _DeleteVaultDialog({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  State<_DeleteVaultDialog> createState() => _DeleteVaultDialogState();
+}
+
+class _DeleteVaultDialogState extends State<_DeleteVaultDialog> {
+  bool get _canDelete => widget.controller.text == 'DELETE';
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: const Text('Delete vault?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'This removes the local encrypted vault and metadata from this device.',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: widget.controller,
+            decoration: const InputDecoration(labelText: 'Type DELETE'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: scheme.error,
+            foregroundColor: scheme.onError,
+          ),
+          onPressed: _canDelete ? () => Navigator.pop(context, true) : null,
+          child: const Text('Delete vault'),
+        ),
+      ],
+    );
   }
 }
 
@@ -200,24 +249,14 @@ class _EnumTile<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Text(label(value)),
-      trailing: DropdownButton<T>(
-        value: value,
-        items: values
-            .map(
-              (item) =>
-                  DropdownMenuItem<T>(value: item, child: Text(label(item))),
-            )
-            .toList(),
-        onChanged: (item) {
-          if (item != null) {
-            onChanged(item);
-          }
-        },
-      ),
+    return AdaptiveChoiceTile<T>(
+      icon: icon,
+      title: title,
+      value: value,
+      options: values
+          .map((item) => AdaptiveOption<T>(value: item, label: label(item)))
+          .toList(),
+      onChanged: onChanged,
     );
   }
 }
@@ -237,26 +276,19 @@ class _DurationTile extends StatelessWidget {
       Duration(minutes: 5),
     ];
     final effectiveValue = values.contains(value) ? value : values[1];
-    return ListTile(
-      leading: const Icon(Icons.content_paste_off_rounded),
-      title: const Text('Clipboard timeout'),
-      subtitle: Text('${effectiveValue.inSeconds} seconds'),
-      trailing: DropdownButton<Duration>(
-        value: effectiveValue,
-        items: values
-            .map(
-              (duration) => DropdownMenuItem(
-                value: duration,
-                child: Text('${duration.inSeconds} s'),
-              ),
-            )
-            .toList(),
-        onChanged: (duration) {
-          if (duration != null) {
-            onChanged(duration);
-          }
-        },
-      ),
+    return AdaptiveChoiceTile<Duration>(
+      icon: Icons.content_paste_off_rounded,
+      title: 'Clipboard timeout',
+      value: effectiveValue,
+      options: values
+          .map(
+            (duration) => AdaptiveOption<Duration>(
+              value: duration,
+              label: '${duration.inSeconds} seconds',
+            ),
+          )
+          .toList(),
+      onChanged: onChanged,
     );
   }
 }
@@ -288,20 +320,24 @@ class _BackupPasswordDialogState extends ConsumerState<_BackupPasswordDialog> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    if (!widget.export && !await _confirmRestore()) {
+      return;
+    }
     final controller = ref.read(vaultControllerProvider.notifier);
     final backupService = ref.read(backupServiceProvider);
+    var completed = true;
     if (widget.export) {
       await controller.exportBackup(
         backupPassword: _password.text,
         backupService: backupService,
       );
     } else {
-      await controller.importBackup(
+      completed = await controller.importBackup(
         backupPassword: _password.text,
         backupService: backupService,
       );
     }
-    if (mounted) {
+    if (mounted && completed) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -313,6 +349,17 @@ class _BackupPasswordDialogState extends ConsumerState<_BackupPasswordDialog> {
         ),
       );
     }
+  }
+
+  Future<bool> _confirmRestore() async {
+    return showAdaptiveConfirmDialog(
+      context: context,
+      title: 'Restore backup?',
+      message:
+          'The selected backup will replace the current vault contents after it is authenticated.',
+      confirmLabel: 'Restore',
+      destructive: true,
+    );
   }
 
   @override
@@ -332,6 +379,10 @@ class _BackupPasswordDialogState extends ConsumerState<_BackupPasswordDialog> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _password,
+              keyboardType: TextInputType.visiblePassword,
+              autocorrect: false,
+              enableSuggestions: false,
+              autofillHints: const [AutofillHints.newPassword],
               obscureText: !_show,
               decoration: InputDecoration(
                 labelText: 'Backup password',
@@ -353,6 +404,10 @@ class _BackupPasswordDialogState extends ConsumerState<_BackupPasswordDialog> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _confirm,
+                keyboardType: TextInputType.visiblePassword,
+                autocorrect: false,
+                enableSuggestions: false,
+                autofillHints: const [AutofillHints.newPassword],
                 obscureText: !_show,
                 decoration: const InputDecoration(
                   labelText: 'Confirm backup password',
@@ -383,6 +438,130 @@ class _BackupPasswordDialogState extends ConsumerState<_BackupPasswordDialog> {
   }
 }
 
+class _ChangeMasterPasswordDialog extends ConsumerStatefulWidget {
+  const _ChangeMasterPasswordDialog();
+
+  @override
+  ConsumerState<_ChangeMasterPasswordDialog> createState() =>
+      _ChangeMasterPasswordDialogState();
+}
+
+class _ChangeMasterPasswordDialogState
+    extends ConsumerState<_ChangeMasterPasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _current = TextEditingController();
+  final _next = TextEditingController();
+  final _confirm = TextEditingController();
+  bool _show = false;
+
+  @override
+  void dispose() {
+    _current.dispose();
+    _next.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    await ref
+        .read(vaultControllerProvider.notifier)
+        .changeMasterPasswordWithCurrentPassword(
+          currentMasterPassword: _current.text,
+          newMasterPassword: _next.text,
+        );
+    if (mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Master password changed.')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Change master password'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'My Pocket Memory cannot recover this password. Choose a long password you can remember.',
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _current,
+              keyboardType: TextInputType.visiblePassword,
+              autocorrect: false,
+              enableSuggestions: false,
+              autofillHints: const [AutofillHints.password],
+              obscureText: !_show,
+              decoration: InputDecoration(
+                labelText: 'Current master password',
+                suffixIcon: IconButton(
+                  tooltip: _show ? 'Hide passwords' : 'Reveal passwords',
+                  onPressed: () => setState(() => _show = !_show),
+                  icon: Icon(
+                    _show
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                  ),
+                ),
+              ),
+              validator: (value) =>
+                  value == null || value.isEmpty ? 'Required' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _next,
+              keyboardType: TextInputType.visiblePassword,
+              autocorrect: false,
+              enableSuggestions: false,
+              autofillHints: const [AutofillHints.newPassword],
+              obscureText: !_show,
+              decoration: const InputDecoration(
+                labelText: 'New master password',
+              ),
+              validator: (value) => value == null || value.length < 12
+                  ? 'Use at least 12 characters.'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _confirm,
+              keyboardType: TextInputType.visiblePassword,
+              autocorrect: false,
+              enableSuggestions: false,
+              autofillHints: const [AutofillHints.newPassword],
+              obscureText: !_show,
+              decoration: const InputDecoration(
+                labelText: 'Confirm new master password',
+              ),
+              validator: (value) =>
+                  value != _next.text ? 'Passwords do not match.' : null,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        AsyncActionButton(
+          onPressed: _save,
+          icon: const Icon(Icons.save_rounded),
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
 class _PrivacyDialog extends StatelessWidget {
   const _PrivacyDialog();
 
@@ -392,7 +571,7 @@ class _PrivacyDialog extends StatelessWidget {
       title: const Text('Privacy'),
       content: const SingleChildScrollView(
         child: Text(
-          'LocalVault creates no account, backend, analytics stream, remote configuration, or crash-reporting connection. Records are stored in an encrypted SQLite database on this device.\n\nForgetting the master password can permanently lock the vault. Losing the device can lose the data unless an encrypted backup exists. Store only information you are authorized to retain.\n\nLimitations include rooted or jailbroken devices, compromised operating systems, malicious keyboards, accessibility malware, shoulder surfing while unlocked, weak master passwords, and the fact that iOS cannot universally prevent all screenshots.',
+          'My Pocket Memory creates no account, backend, analytics stream, remote configuration, or crash-reporting connection. Records are stored in an encrypted SQLite database on this device.\n\nForgetting the master password can permanently lock the vault. Losing the device can lose the data unless an encrypted backup exists. Store only information you are authorized to retain.\n\nLimitations include rooted or jailbroken devices, compromised operating systems, malicious keyboards, accessibility malware, shoulder surfing while unlocked, weak master passwords, and the fact that iOS cannot universally prevent all screenshots.',
         ),
       ),
       actions: [

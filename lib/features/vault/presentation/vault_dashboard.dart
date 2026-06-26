@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/lifecycle/vault_controller.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/widgets/adaptive_controls.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../people/presentation/people_pages.dart';
 import '../domain/search.dart';
 import 'credential_pages.dart';
 
@@ -77,6 +79,12 @@ class _VaultDashboardState extends ConsumerState<VaultDashboard> {
                 return _personFilter == null ||
                     credential.personId == _personFilter;
               }).toList();
+              final favoriteCredentials = displayedCredentials
+                  .where((credential) => credential.isFavorite)
+                  .toList();
+              final otherCredentials = displayedCredentials
+                  .where((credential) => !credential.isFavorite)
+                  .toList();
               final searchResults = searchVault(
                 query: _query,
                 credentials: credentials,
@@ -86,23 +94,14 @@ class _VaultDashboardState extends ConsumerState<VaultDashboard> {
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                 children: [
-                  TextField(
+                  AdaptiveSearchField(
                     controller: _searchController,
                     onChanged: _onSearchChanged,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      hintText: 'Search vault',
-                      suffixIcon: _query.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: 'Clear search',
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() => _query = '');
-                              },
-                              icon: const Icon(Icons.close_rounded),
-                            ),
-                    ),
+                    hintText: 'Search vault',
+                    onClear: () {
+                      _debounce?.cancel();
+                      setState(() => _query = '');
+                    },
                   ),
                   if (people.isNotEmpty) ...[
                     const SizedBox(height: 12),
@@ -131,25 +130,49 @@ class _VaultDashboardState extends ConsumerState<VaultDashboard> {
                         label: const Text('Add credential'),
                       ),
                     )
-                  else ...[
-                    if (displayedCredentials.any((c) => c.isFavorite)) ...[
-                      const SectionHeader('Favorites'),
-                      ...displayedCredentials
-                          .where((credential) => credential.isFavorite)
-                          .map(
-                            (credential) => _CredentialCard(
-                              credential: credential,
-                              person: _personFor(people, credential.personId),
+                  else if (displayedCredentials.isEmpty &&
+                      _personFilter != null)
+                    EmptyState(
+                      icon: Icons.key_off_rounded,
+                      title: 'No credentials for this person',
+                      message:
+                          'Add a credential that belongs to ${_personFor(people, _personFilter)?.displayName ?? 'this person'}.',
+                      action: FilledButton.icon(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => AddEditCredentialPage(
+                              initialPersonId: _personFilter,
                             ),
                           ),
-                    ],
-                    const SectionHeader('Credentials'),
-                    ...displayedCredentials.map(
-                      (credential) => _CredentialCard(
-                        credential: credential,
-                        person: _personFor(people, credential.personId),
+                        ),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Add credential'),
                       ),
-                    ),
+                    )
+                  else ...[
+                    if (favoriteCredentials.isNotEmpty) ...[
+                      const SectionHeader('Favorites'),
+                      ...favoriteCredentials.map(
+                        (credential) => _CredentialCard(
+                          credential: credential,
+                          person: _personFor(people, credential.personId),
+                        ),
+                      ),
+                    ],
+                    if (otherCredentials.isNotEmpty ||
+                        favoriteCredentials.isEmpty) ...[
+                      SectionHeader(
+                        favoriteCredentials.isEmpty
+                            ? 'Credentials'
+                            : 'Other credentials',
+                      ),
+                      ...otherCredentials.map(
+                        (credential) => _CredentialCard(
+                          credential: credential,
+                          person: _personFor(people, credential.personId),
+                        ),
+                      ),
+                    ],
                   ],
                 ],
               );
@@ -239,11 +262,18 @@ class _SearchResults extends StatelessWidget {
         ...results.map(
           (result) => Card(
             child: ListTile(
-              leading: Icon(switch (result.kind) {
-                'Credential' => Icons.key_rounded,
-                'Person' => Icons.person_rounded,
-                _ => Icons.straighten_rounded,
-              }),
+              leading: TonedIconBadge(
+                icon: switch (result.kind) {
+                  'Credential' => Icons.key_rounded,
+                  'Person' => Icons.person_rounded,
+                  _ => Icons.straighten_rounded,
+                },
+                tone: switch (result.kind) {
+                  'Person' => IconBadgeTone.secondary,
+                  'Measurement' => IconBadgeTone.tertiary,
+                  _ => IconBadgeTone.primary,
+                },
+              ),
               title: Text(result.label),
               subtitle: Text(
                 [
@@ -251,20 +281,44 @@ class _SearchResults extends StatelessWidget {
                   if (result.subtitle != null) result.subtitle!,
                 ].join(' • '),
               ),
-              onTap: result.credential == null
-                  ? null
-                  : () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => CredentialDetailPage(
-                          credentialId: result.credential!.id,
-                        ),
-                      ),
-                    ),
+              onTap: () => _openResult(context, result),
             ),
           ),
         ),
       ],
     );
+  }
+
+  void _openResult(BuildContext context, LocalSearchResult result) {
+    final credential = result.credential;
+    if (credential != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CredentialDetailPage(credentialId: credential.id),
+        ),
+      );
+      return;
+    }
+    final person = result.person;
+    if (person != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PersonProfilePage(personId: person.id),
+        ),
+      );
+      return;
+    }
+    final measurement = result.measurement;
+    if (measurement != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AddEditMeasurementPage(
+            personId: measurement.personId,
+            measurement: measurement,
+          ),
+        ),
+      );
+    }
   }
 }
 
@@ -294,10 +348,13 @@ class _CredentialCard extends StatelessWidget {
         child: ListTile(
           leading: Hero(
             tag: 'credential-icon-${credential.id}',
-            child: CircleAvatar(
-              child: Icon(
-                credential.isFavorite ? Icons.star_rounded : Icons.key_rounded,
-              ),
+            child: TonedIconBadge(
+              icon: credential.isFavorite
+                  ? Icons.star_rounded
+                  : Icons.key_rounded,
+              tone: credential.isFavorite
+                  ? IconBadgeTone.tertiary
+                  : IconBadgeTone.primary,
             ),
           ),
           title: Text(credential.title),

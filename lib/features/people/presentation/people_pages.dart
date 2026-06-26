@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/lifecycle/vault_controller.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/widgets/adaptive_controls.dart';
 import '../../../core/widgets/async_action_button.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/section_header.dart';
@@ -47,8 +48,9 @@ class PeopleListPage extends ConsumerWidget {
               final person = people[index];
               return Card(
                 child: ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.person_rounded),
+                  leading: const TonedIconBadge(
+                    icon: Icons.person_rounded,
+                    tone: IconBadgeTone.secondary,
                   ),
                   title: Text(person.displayName),
                   subtitle: Text(
@@ -103,6 +105,34 @@ class _AddEditPersonPageState extends ConsumerState<AddEditPersonPage> {
     super.dispose();
   }
 
+  bool get _isDirty {
+    final person = widget.person;
+    if (person == null) {
+      return [
+        _name.text,
+        _relationship.text,
+        _notes.text,
+      ].any((value) => value.isNotEmpty);
+    }
+    return _name.text != person.displayName ||
+        _relationship.text != (person.relationshipLabel ?? '') ||
+        _notes.text != (person.notes ?? '');
+  }
+
+  Future<bool> _confirmDiscard() async {
+    if (!_isDirty) {
+      return true;
+    }
+    return showAdaptiveConfirmDialog(
+      context: context,
+      title: 'Discard changes?',
+      message: 'Unsaved person changes will be lost.',
+      cancelLabel: 'Keep editing',
+      confirmLabel: 'Discard',
+      destructive: true,
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -131,50 +161,64 @@ class _AddEditPersonPageState extends ConsumerState<AddEditPersonPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.person == null ? 'Add person' : 'Edit person'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        children: [
-          Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                TextFormField(
-                  controller: _name,
-                  decoration: const InputDecoration(labelText: 'Display name'),
-                  validator: (value) =>
-                      value == null || value.trim().isEmpty ? 'Required' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _relationship,
-                  decoration: const InputDecoration(
-                    labelText: 'Relationship label',
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) {
+          return;
+        }
+        if (await _confirmDiscard() && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.person == null ? 'Add person' : 'Edit person'),
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
+            Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  TextFormField(
+                    controller: _name,
+                    decoration: const InputDecoration(
+                      labelText: 'Display name',
+                    ),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Required'
+                        : null,
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _notes,
-                  decoration: const InputDecoration(labelText: 'Notes'),
-                  minLines: 3,
-                  maxLines: 5,
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: AsyncActionButton(
-                    onPressed: _save,
-                    icon: const Icon(Icons.save_rounded),
-                    child: const Text('Save'),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _relationship,
+                    decoration: const InputDecoration(
+                      labelText: 'Relationship label',
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _notes,
+                    decoration: const InputDecoration(labelText: 'Notes'),
+                    minLines: 3,
+                    maxLines: 5,
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: AsyncActionButton(
+                      onPressed: _save,
+                      icon: const Icon(Icons.save_rounded),
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -195,10 +239,21 @@ class PersonProfilePage extends ConsumerWidget {
       future: peopleRepository.byId(personId),
       builder: (context, personSnapshot) {
         final person = personSnapshot.data;
-        if (person == null) {
+        if (person == null &&
+            personSnapshot.connectionState != ConnectionState.done) {
           return Scaffold(
             appBar: AppBar(),
             body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (person == null) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: const EmptyState(
+              icon: Icons.person_off_rounded,
+              title: 'Person not found',
+              message: 'This profile may have been deleted.',
+            ),
           );
         }
         return Scaffold(
@@ -301,7 +356,9 @@ class PersonProfilePage extends ConsumerWidget {
                         .map(
                           (credential) => Card(
                             child: ListTile(
-                              leading: const Icon(Icons.key_rounded),
+                              leading: const TonedIconBadge(
+                                icon: Icons.key_rounded,
+                              ),
                               title: Text(credential.title),
                               subtitle: const Text('Password hidden'),
                               trailing: const Icon(Icons.chevron_right_rounded),
@@ -336,33 +393,27 @@ class PersonProfilePage extends ConsumerWidget {
     if (!context.mounted) {
       return;
     }
-    final action = await showDialog<_PersonDeleteAction>(
+    final action = await showAdaptiveChoiceSheet<_PersonDeleteAction>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete ${person.displayName}?'),
-        content: Text(
+      title: 'Delete ${person.displayName}?',
+      message:
           'This person has ${impact.credentialCount} linked credentials and ${impact.measurementCount} measurements.',
+      options: [
+        if (impact.measurementCount == 0)
+          const AdaptiveOption(
+            value: _PersonDeleteAction.unassign,
+            label: 'Unassign credentials',
+            icon: Icons.link_off_rounded,
+          ),
+        const AdaptiveOption(
+          value: _PersonDeleteAction.deleteAll,
+          label: 'Delete person and measurements',
+          icon: Icons.delete_outline_rounded,
+          destructive: true,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, _PersonDeleteAction.cancel),
-            child: const Text('Cancel'),
-          ),
-          if (impact.measurementCount == 0)
-            TextButton(
-              onPressed: () =>
-                  Navigator.pop(context, _PersonDeleteAction.unassign),
-              child: const Text('Unassign credentials'),
-            ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(context, _PersonDeleteAction.deleteAll),
-            child: const Text('Delete measurements'),
-          ),
-        ],
-      ),
+      ],
     );
-    if (action == _PersonDeleteAction.cancel || action == null) {
+    if (action == null) {
       return;
     }
     await repository.deletePerson(
@@ -376,7 +427,7 @@ class PersonProfilePage extends ConsumerWidget {
   }
 }
 
-enum _PersonDeleteAction { cancel, unassign, deleteAll }
+enum _PersonDeleteAction { unassign, deleteAll }
 
 class _MeasurementCard extends StatelessWidget {
   const _MeasurementCard({required this.measurement, required this.metric});
@@ -402,7 +453,10 @@ class _MeasurementCard extends StatelessWidget {
           );
     return Card(
       child: ListTile(
-        leading: const Icon(Icons.straighten_rounded),
+        leading: const TonedIconBadge(
+          icon: Icons.straighten_rounded,
+          tone: IconBadgeTone.tertiary,
+        ),
         title: Text(title),
         subtitle: Text('${template.valueKind.name} • ${measurement.side}'),
         trailing: AnimatedSwitcher(
@@ -464,7 +518,16 @@ class _AddEditMeasurementPageState
       (side) => side.name == measurement?.side,
       orElse: () => MeasurementSide.notApplicable,
     );
-    _unit = _templateId == 'height' ? 'cm' : 'cm';
+    _unit =
+        measurement == null &&
+            ref
+                    .read(vaultControllerProvider)
+                    .settings
+                    .preferredUnitSystem
+                    .name ==
+                'imperial'
+        ? 'in'
+        : 'cm';
     _value = TextEditingController(
       text: measurement?.canonicalValueMmX100 == null
           ? ''
@@ -562,14 +625,14 @@ class _AddEditMeasurementPageState
             key: _formKey,
             child: Column(
               children: [
-                DropdownButtonFormField<String>(
-                  initialValue: _templateId,
-                  decoration: const InputDecoration(labelText: 'Measurement'),
-                  items: measurementTemplates
+                AdaptivePickerFormField<String>(
+                  label: 'Measurement',
+                  value: _templateId,
+                  options: measurementTemplates
                       .map(
-                        (template) => DropdownMenuItem(
+                        (template) => AdaptiveOption<String>(
                           value: template.id,
-                          child: Text(template.label),
+                          label: template.label,
                         ),
                       )
                       .toList(),
@@ -589,14 +652,14 @@ class _AddEditMeasurementPageState
                         : null,
                   ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<MeasurementSide>(
-                  initialValue: _side,
-                  decoration: const InputDecoration(labelText: 'Side'),
-                  items: MeasurementSide.values
+                AdaptivePickerFormField<MeasurementSide>(
+                  label: 'Side',
+                  value: _side,
+                  options: MeasurementSide.values
                       .map(
-                        (side) => DropdownMenuItem(
+                        (side) => AdaptiveOption<MeasurementSide>(
                           value: side,
-                          child: Text(side.label),
+                          label: side.label,
                         ),
                       )
                       .toList(),
@@ -646,24 +709,14 @@ class _AddEditMeasurementPageState
     if (measurement == null) {
       return;
     }
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAdaptiveConfirmDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete measurement?'),
-        content: const Text('This measurement will be removed from the vault.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      title: 'Delete measurement?',
+      message: 'This measurement will be removed from the vault.',
+      confirmLabel: 'Delete',
+      destructive: true,
     );
-    if (confirmed == true && mounted) {
+    if (confirmed && mounted) {
       await ref.read(measurementRepositoryProvider).delete(measurement.id);
       if (mounted) {
         Navigator.pop(context);
@@ -691,14 +744,14 @@ class _LengthFields extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        DropdownButtonFormField<String>(
-          initialValue: unit,
-          decoration: const InputDecoration(labelText: 'Input unit'),
-          items: const [
-            DropdownMenuItem(value: 'cm', child: Text('Centimeters')),
-            DropdownMenuItem(value: 'mm', child: Text('Millimeters')),
-            DropdownMenuItem(value: 'in', child: Text('Decimal inches')),
-            DropdownMenuItem(value: 'ft_in', child: Text('Feet and inches')),
+        AdaptivePickerFormField<String>(
+          label: 'Input unit',
+          value: unit,
+          options: const [
+            AdaptiveOption(value: 'cm', label: 'Centimeters'),
+            AdaptiveOption(value: 'mm', label: 'Millimeters'),
+            AdaptiveOption(value: 'in', label: 'Decimal inches'),
+            AdaptiveOption(value: 'ft_in', label: 'Feet and inches'),
           ],
           onChanged: onUnitChanged,
         ),

@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/lifecycle/vault_controller.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/widgets/adaptive_controls.dart';
 import '../../../core/widgets/async_action_button.dart';
+import '../../../core/widgets/empty_state.dart';
 
 class CredentialDetailPage extends ConsumerStatefulWidget {
   const CredentialDetailPage({required this.credentialId, super.key});
@@ -29,10 +31,21 @@ class _CredentialDetailPageState extends ConsumerState<CredentialDetailPage> {
       future: repository.byId(widget.credentialId),
       builder: (context, snapshot) {
         final credential = snapshot.data;
-        if (credential == null) {
+        if (credential == null &&
+            snapshot.connectionState != ConnectionState.done) {
           return Scaffold(
             appBar: AppBar(),
             body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (credential == null) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: const EmptyState(
+              icon: Icons.key_off_rounded,
+              title: 'Credential not found',
+              message: 'This credential may have been deleted.',
+            ),
           );
         }
         return Scaffold(
@@ -64,14 +77,15 @@ class _CredentialDetailPageState extends ConsumerState<CredentialDetailPage> {
             children: [
               Hero(
                 tag: 'credential-icon-${credential.id}',
-                child: CircleAvatar(
-                  radius: 34,
-                  child: Icon(
-                    credential.isFavorite
-                        ? Icons.star_rounded
-                        : Icons.key_rounded,
-                    size: 34,
-                  ),
+                child: TonedIconBadge(
+                  icon: credential.isFavorite
+                      ? Icons.star_rounded
+                      : Icons.key_rounded,
+                  tone: credential.isFavorite
+                      ? IconBadgeTone.tertiary
+                      : IconBadgeTone.primary,
+                  size: 68,
+                  iconSize: 34,
                 ),
               ),
               const SizedBox(height: 24),
@@ -182,24 +196,14 @@ class _CredentialDetailPageState extends ConsumerState<CredentialDetailPage> {
     dynamic repository,
     Credential credential,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAdaptiveConfirmDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete credential?'),
-        content: Text('Delete "${credential.title}" from this vault.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      title: 'Delete credential?',
+      message: 'Delete "${credential.title}" from this vault.',
+      confirmLabel: 'Delete',
+      destructive: true,
     );
-    if (confirmed == true && context.mounted) {
+    if (confirmed && context.mounted) {
       await repository.delete(credential.id);
       if (context.mounted) {
         Navigator.pop(context);
@@ -306,24 +310,15 @@ class _AddEditCredentialPageState extends ConsumerState<AddEditCredentialPage> {
     if (!_isDirty) {
       return true;
     }
-    final discard = await showDialog<bool>(
+    final discard = await showAdaptiveConfirmDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Discard changes?'),
-        content: const Text('Unsaved credential changes will be lost.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep editing'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+      title: 'Discard changes?',
+      message: 'Unsaved credential changes will be lost.',
+      cancelLabel: 'Keep editing',
+      confirmLabel: 'Discard',
+      destructive: true,
     );
-    return discard == true;
+    return discard;
   }
 
   Future<void> _save() async {
@@ -383,6 +378,10 @@ class _AddEditCredentialPageState extends ConsumerState<AddEditCredentialPage> {
           future: peopleRepository.all(),
           builder: (context, snapshot) {
             final people = snapshot.data ?? const <Person>[];
+            final effectivePersonId =
+                people.any((person) => person.id == _personId)
+                ? _personId
+                : null;
             return ListView(
               padding: const EdgeInsets.all(AppSpacing.md),
               children: [
@@ -399,18 +398,18 @@ class _AddEditCredentialPageState extends ConsumerState<AddEditCredentialPage> {
                             : null,
                       ),
                       const SizedBox(height: 12),
-                      DropdownButtonFormField<String?>(
-                        initialValue: _personId,
-                        decoration: const InputDecoration(labelText: 'Person'),
-                        items: [
-                          const DropdownMenuItem<String?>(
+                      AdaptivePickerFormField<String?>(
+                        label: 'Person',
+                        value: effectivePersonId,
+                        options: [
+                          const AdaptiveOption<String?>(
                             value: null,
-                            child: Text('Unassigned'),
+                            label: 'Unassigned',
                           ),
                           ...people.map(
-                            (person) => DropdownMenuItem<String?>(
+                            (person) => AdaptiveOption<String?>(
                               value: person.id,
-                              child: Text(person.displayName),
+                              label: person.displayName,
                             ),
                           ),
                         ],
@@ -426,6 +425,10 @@ class _AddEditCredentialPageState extends ConsumerState<AddEditCredentialPage> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _secret,
+                        keyboardType: TextInputType.visiblePassword,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        autofillHints: const [AutofillHints.password],
                         obscureText: !_showSecret,
                         decoration: InputDecoration(
                           labelText: 'Password or secret',
@@ -459,7 +462,7 @@ class _AddEditCredentialPageState extends ConsumerState<AddEditCredentialPage> {
                         maxLines: 5,
                       ),
                       const SizedBox(height: 8),
-                      SwitchListTile(
+                      SwitchListTile.adaptive(
                         value: _favorite,
                         onChanged: (value) => setState(() => _favorite = value),
                         title: const Text('Favorite'),

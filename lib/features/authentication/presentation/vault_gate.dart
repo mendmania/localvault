@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/lifecycle/vault_controller.dart';
 import '../../../app/theme/app_theme.dart';
+import '../../../core/widgets/adaptive_controls.dart';
 import '../../../core/widgets/async_action_button.dart';
 import '../../vault/presentation/main_shell.dart';
 
@@ -40,6 +41,8 @@ class _VaultGateState extends ConsumerState<VaultGate>
       unawaited(
         ref.read(vaultControllerProvider.notifier).appMovedToBackground(),
       );
+    } else if (state == AppLifecycleState.resumed) {
+      unawaited(ref.read(vaultControllerProvider.notifier).appResumed());
     }
   }
 
@@ -68,7 +71,7 @@ class _VaultGateState extends ConsumerState<VaultGate>
 }
 
 class _SplashStatus extends StatelessWidget {
-  const _SplashStatus({this.label = 'Opening LocalVault...'});
+  const _SplashStatus({this.label = 'Opening My Pocket Memory...'});
 
   final String label;
 
@@ -79,7 +82,11 @@ class _SplashStatus extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.lock_rounded, size: 56),
+            const TonedIconBadge(
+              icon: Icons.lock_rounded,
+              size: 56,
+              iconSize: 30,
+            ),
             const SizedBox(height: 16),
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
@@ -102,7 +109,7 @@ class _ErrorState extends StatelessWidget {
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Text(message ?? 'LocalVault could not start.'),
+          child: Text(message ?? 'My Pocket Memory could not start.'),
         ),
       ),
     );
@@ -153,7 +160,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('LocalVault')),
+      appBar: AppBar(title: const Text('My Pocket Memory')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -215,10 +222,10 @@ class _IntroStep extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          Icons.enhanced_encryption_rounded,
+        const TonedIconBadge(
+          icon: Icons.enhanced_encryption_rounded,
           size: 56,
-          color: theme.colorScheme.primary,
+          iconSize: 30,
         ),
         const SizedBox(height: 20),
         Text(
@@ -227,7 +234,7 @@ class _IntroStep extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         const Text(
-          'Your encrypted vault stays on this device. LocalVault is for information you rarely need but cannot afford to forget.',
+          'Your encrypted vault stays on this device. My Pocket Memory is for information you rarely need but cannot afford to forget.',
         ),
         const SizedBox(height: 20),
         const _WarningText(),
@@ -279,11 +286,15 @@ class _PasswordStepState extends State<_PasswordStep> {
         ),
         const SizedBox(height: 12),
         const Text(
-          'LocalVault cannot recover this password. Use a long password you can remember.',
+          'My Pocket Memory cannot recover this password. Use a long password you can remember.',
         ),
         const SizedBox(height: 20),
         TextFormField(
           controller: widget.passwordController,
+          keyboardType: TextInputType.visiblePassword,
+          autocorrect: false,
+          enableSuggestions: false,
+          autofillHints: const [AutofillHints.newPassword],
           obscureText: !_showPassword,
           decoration: InputDecoration(
             labelText: 'Master password',
@@ -308,6 +319,10 @@ class _PasswordStepState extends State<_PasswordStep> {
         const SizedBox(height: 12),
         TextFormField(
           controller: widget.confirmController,
+          keyboardType: TextInputType.visiblePassword,
+          autocorrect: false,
+          enableSuggestions: false,
+          autofillHints: const [AutofillHints.newPassword],
           obscureText: !_showConfirm,
           decoration: InputDecoration(
             labelText: 'Confirm master password',
@@ -424,13 +439,14 @@ class _WarningText extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
+        color: scheme.tertiaryContainer,
         borderRadius: BorderRadius.circular(AppRadii.sm),
       ),
-      child: const Padding(
-        padding: EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Text(
-          'LocalVault has no recovery account. Keep the master password and encrypted backup safe.',
+          'My Pocket Memory has no recovery account. Keep the master password and encrypted backup safe.',
+          style: TextStyle(color: scheme.onTertiaryContainer),
         ),
       ),
     );
@@ -502,24 +518,28 @@ class _UnlockScreenState extends ConsumerState<UnlockScreen>
                           angle: reduceMotion
                               ? 0
                               : -0.12 * _lockController.value,
-                          child: Icon(
-                            _lockController.value > 0.5
+                          child: TonedIconBadge(
+                            icon: _lockController.value > 0.5
                                 ? Icons.lock_open_rounded
                                 : Icons.lock_rounded,
                             size: 72,
-                            color: Theme.of(context).colorScheme.primary,
+                            iconSize: 38,
                           ),
                         );
                       },
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Unlock LocalVault',
+                      'Unlock My Pocket Memory',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _controller,
+                      keyboardType: TextInputType.visiblePassword,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      autofillHints: const [AutofillHints.password],
                       obscureText: !_show,
                       decoration: InputDecoration(
                         labelText: 'Master password',
@@ -587,10 +607,10 @@ class OptionalBiometricSetupScreen extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.fingerprint_rounded,
+                  const TonedIconBadge(
+                    icon: Icons.fingerprint_rounded,
                     size: 56,
-                    color: Theme.of(context).colorScheme.primary,
+                    iconSize: 30,
                   ),
                   const SizedBox(height: 16),
                   Text(
