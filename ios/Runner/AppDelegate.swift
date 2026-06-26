@@ -86,7 +86,7 @@ import UIKit
     cover.autoresizingMask = [.flexibleWidth, .flexibleHeight]
 
     let label = UILabel()
-    label.text = "LocalVault"
+    label.text = "My Pocket Memory"
     label.textColor = .white
     label.font = UIFont.preferredFont(forTextStyle: .title1)
     label.translatesAutoresizingMaskIntoConstraints = false

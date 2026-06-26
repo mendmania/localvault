@@ -1,16 +1,13 @@
 name: Bump app version
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   bump-version:
-    if: github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip version bump]')
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository

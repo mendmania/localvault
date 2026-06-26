@@ -10,5 +10,6 @@ void main() {
 
     expect(manifest.contains('android.permission.INTERNET'), isFalse);
     expect(manifest.contains('android:allowBackup="false"'), isTrue);
+    expect(manifest.contains('android.permission.USE_BIOMETRIC'), isTrue);
   });
 }

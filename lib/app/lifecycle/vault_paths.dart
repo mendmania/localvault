@@ -31,5 +31,8 @@ class VaultPaths {
         await file.delete();
       }
     }
+    if (await backupDirectory.exists()) {
+      await backupDirectory.delete(recursive: true);
+    }
   }
 }

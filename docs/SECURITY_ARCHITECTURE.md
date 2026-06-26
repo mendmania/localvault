@@ -48,5 +48,5 @@ Backups use a dedicated backup password and AES-GCM authenticated encryption. Th
 - iOS deployment target 13.0.
 - Android `allowBackup=false` plus backup/data-extraction exclusions.
 - iOS files excluded from backup via a platform channel.
-- Android FLAG_SECURE and iOS privacy cover through `screen_protector`.
+- Android FLAG_SECURE and an iOS app-switcher privacy cover through the `localvault/security` platform channel.
 - No network feature and no `INTERNET` permission in the main manifest.

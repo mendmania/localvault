@@ -127,11 +127,13 @@ class VaultController extends StateNotifier<VaultState> {
     VaultCrypto? crypto,
     BiometricVaultKeyStore? biometricVaultKeyStore,
     PlatformSecurity? platformSecurity,
+    DateTime Function()? now,
     VaultState? initialState,
   }) : _crypto = crypto ?? VaultCrypto(),
        _biometricVaultKeyStore =
            biometricVaultKeyStore ?? BiometricVaultKeyStore(),
        _platformSecurity = platformSecurity ?? PlatformSecurity(),
+       _now = now ?? (() => DateTime.now().toUtc()),
        super(
          initialState ?? const VaultState(status: VaultStatus.initializing),
        );
@@ -139,16 +141,19 @@ class VaultController extends StateNotifier<VaultState> {
   final VaultCrypto _crypto;
   final BiometricVaultKeyStore _biometricVaultKeyStore;
   final PlatformSecurity _platformSecurity;
+  final DateTime Function() _now;
   VaultPaths? _paths;
   VaultMetadataStore? _metadataStore;
   Uint8List? _vaultKey;
   Timer? _autoLockTimer;
+  DateTime? _backgroundedAt;
 
   Future<void> initialize() async {
     if (state.status != VaultStatus.initializing) {
       return;
     }
     try {
+      await _platformSecurity.enableSensitiveScreenProtection();
       final paths = await VaultPaths.load();
       _paths = paths;
       _metadataStore = FileVaultMetadataStore(paths.metadataFile);
@@ -160,7 +165,9 @@ class VaultController extends StateNotifier<VaultState> {
       ]);
       final metadata = await _metadataStore!.read();
       final biometricAvailable =
-          metadata != null && await _biometricVaultKeyStore.canUseBiometrics();
+          metadata != null &&
+          await _biometricVaultKeyStore.hasSavedVaultKey() &&
+          await _biometricVaultKeyStore.canUseBiometrics();
       state = state.copyWith(
         status: metadata == null
             ? VaultStatus.needsOnboarding
@@ -172,7 +179,7 @@ class VaultController extends StateNotifier<VaultState> {
     } catch (_) {
       state = state.copyWith(
         status: VaultStatus.error,
-        errorMessage: 'LocalVault could not initialize local storage.',
+        errorMessage: 'My Pocket Memory could not initialize local storage.',
       );
     }
   }
@@ -221,8 +228,10 @@ class VaultController extends StateNotifier<VaultState> {
     state = state.copyWith(status: VaultStatus.unlocking, clearError: true);
     final vaultKey = await _biometricVaultKeyStore.readVaultKey();
     if (vaultKey == null) {
+      await _biometricVaultKeyStore.clear();
       state = state.copyWith(
         status: VaultStatus.locked,
+        biometricAvailable: false,
         errorMessage:
             'Biometric unlock is unavailable. Use the master password.',
       );
@@ -261,9 +270,30 @@ class VaultController extends StateNotifier<VaultState> {
   }
 
   Future<void> changeMasterPassword(String newMasterPassword) async {
+    await changeMasterPasswordWithCurrentPassword(
+      currentMasterPassword: null,
+      newMasterPassword: newMasterPassword,
+    );
+  }
+
+  Future<void> changeMasterPasswordWithCurrentPassword({
+    required String? currentMasterPassword,
+    required String newMasterPassword,
+  }) async {
     final key = _vaultKey;
     if (key == null) {
       throw const VaultNotUnlockedException();
+    }
+    if (currentMasterPassword != null) {
+      final metadata = await _requireStore().read();
+      if (metadata == null) {
+        throw const VaultCorruptedException();
+      }
+      final verifiedKey = await _crypto.unwrapVaultKey(
+        metadata: metadata,
+        masterPassword: currentMasterPassword,
+      );
+      clearBytes(verifiedKey);
     }
     final metadata = await _crypto.wrapVaultKey(
       vaultKey: key,
@@ -299,20 +329,27 @@ class VaultController extends StateNotifier<VaultState> {
     final file = File(
       p.join(
         paths.backupDirectory.path,
-        'localvault-${DateTime.now().toUtc().millisecondsSinceEpoch}.lvbackup',
+        'localvault-${_now().millisecondsSinceEpoch}.lvbackup',
       ),
     );
-    await file.writeAsBytes(backupBytes, flush: true);
-    await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile(file.path)],
-        subject: 'LocalVault encrypted backup',
-        text: 'Store this encrypted LocalVault backup somewhere safe.',
-      ),
-    );
+    try {
+      await file.writeAsBytes(backupBytes, flush: true);
+      await _platformSecurity.excludeFromBackup([file.path]);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          subject: 'My Pocket Memory encrypted backup',
+          text: 'Store this encrypted My Pocket Memory backup somewhere safe.',
+        ),
+      );
+    } finally {
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
   }
 
-  Future<void> importBackup({
+  Future<bool> importBackup({
     required String backupPassword,
     required BackupService backupService,
   }) async {
@@ -322,13 +359,14 @@ class VaultController extends StateNotifier<VaultState> {
     }
     final bytes = await _platformSecurity.pickBackupFile();
     if (bytes == null) {
-      return;
+      return false;
     }
     await backupService.restoreEncryptedBackup(
       database: database,
       backupBytes: bytes,
       backupPassword: backupPassword,
     );
+    return true;
   }
 
   Future<void> noteUserActivity() async {
@@ -338,6 +376,10 @@ class VaultController extends StateNotifier<VaultState> {
   }
 
   Future<void> appMovedToBackground() async {
+    if (!state.isUnlocked) {
+      return;
+    }
+    _backgroundedAt = _now();
     final timeout = state.settings.autoLockTimeout;
     if (timeout == AutoLockTimeout.immediately) {
       await lock();
@@ -346,12 +388,32 @@ class VaultController extends StateNotifier<VaultState> {
     _scheduleAutoLock();
   }
 
+  Future<void> appResumed() async {
+    if (!state.isUnlocked) {
+      _backgroundedAt = null;
+      return;
+    }
+    final backgroundedAt = _backgroundedAt;
+    _backgroundedAt = null;
+    if (backgroundedAt == null) {
+      _scheduleAutoLock();
+      return;
+    }
+    final timeout = state.settings.autoLockTimeout;
+    if (timeout == AutoLockTimeout.immediately ||
+        _now().difference(backgroundedAt) >= timeout.duration) {
+      await lock();
+      return;
+    }
+    _scheduleAutoLock();
+  }
+
   Future<void> lock() async {
     _autoLockTimer?.cancel();
+    _backgroundedAt = null;
     final database = state.database;
     state = state.copyWith(status: VaultStatus.locked, clearDatabase: true);
     await database?.close();
-    await _platformSecurity.disableSensitiveScreenProtection();
     clearBytes(_vaultKey);
     _vaultKey = null;
   }
@@ -378,11 +440,16 @@ class VaultController extends StateNotifier<VaultState> {
     _vaultKey = vaultKey;
     final settings = await SettingsRepository(database).load();
     await _platformSecurity.enableSensitiveScreenProtection();
+    final biometricAvailable =
+        settings.biometricUnlockEnabled &&
+        await _biometricVaultKeyStore.hasSavedVaultKey() &&
+        await _biometricVaultKeyStore.canUseBiometrics();
     state = state.copyWith(
       status: VaultStatus.unlocked,
       database: database,
       settings: settings,
       hasVault: true,
+      biometricAvailable: biometricAvailable,
       clearError: true,
     );
     _scheduleAutoLock();

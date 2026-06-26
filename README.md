@@ -33,8 +33,8 @@ Core promise: **No account. No cloud. No tracking. Your encrypted vault stays on
   - SQLite3MultipleCiphers requested through `hooks.user_defines.sqlite3.source: sqlite3mc`.
   - The database setup checks `PRAGMA cipher`, applies the raw vault key before Drift schema reads, and fails closed if the cipher is unavailable.
 - Privacy controls:
-  - Android screenshot blocking through FLAG_SECURE via `screen_protector`.
-  - iOS app-switcher cover and screen-capture awareness through `screen_protector`.
+  - Android screenshot blocking through FLAG_SECURE via the `localvault/security` platform channel.
+  - iOS app-switcher privacy cover through the `localvault/security` platform channel.
   - Local app-private storage.
   - Android backup disabled and backup/data-extraction exclusions configured.
   - iOS database and metadata paths marked excluded from backup through a platform channel.
@@ -54,11 +54,12 @@ dart run build_runner build
 dart format .
 flutter analyze
 flutter test
-flutter build apk --release
+(cd android && ./gradlew :app:verifyV1ReleaseReadiness)
+flutter build appbundle --release
 flutter build ios --no-codesign
 ```
 
-The Android Gradle project also contains `verifyNoReleaseInternetPermission`, and Flutter tests assert the manifest does not request `android.permission.INTERNET`.
+Android release builds require real release signing. Configure `LOCALVAULT_KEYSTORE_FILE`, `LOCALVAULT_KEYSTORE_PASSWORD`, `LOCALVAULT_KEY_ALIAS`, and `LOCALVAULT_KEY_PASSWORD` through `android/key.properties`, Gradle properties, or environment variables. The Android Gradle project contains `verifyV1ReleaseReadiness`, which checks release signing and the no-`INTERNET` release invariant; Flutter tests also assert the main manifest does not request `android.permission.INTERNET`.
 
 ## Backup
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../errors/app_exceptions.dart';
+
 class AsyncActionButton extends StatefulWidget {
   const AsyncActionButton({
     required this.onPressed,
@@ -37,6 +39,16 @@ class _AsyncActionButtonState extends State<AsyncActionButton> {
         _done = true;
       });
       await Future<void>.delayed(const Duration(milliseconds: 180));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message = error is LocalVaultException
+          ? error.safeMessage
+          : 'The action could not be completed.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() {

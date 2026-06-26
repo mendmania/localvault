@@ -61,7 +61,14 @@ class BackupService {
     required List<int> backupBytes,
     required String backupPassword,
   }) async {
-    final backup = jsonDecode(utf8.decode(backupBytes)) as Map<String, Object?>;
+    final Map<String, Object?> backup;
+    try {
+      backup = jsonDecode(utf8.decode(backupBytes)) as Map<String, Object?>;
+    } on FormatException {
+      throw const UnsupportedBackupVersionException();
+    } on TypeError {
+      throw const UnsupportedBackupVersionException();
+    }
     if (backup['magic'] != backupMagic) {
       throw const UnsupportedBackupVersionException();
     }

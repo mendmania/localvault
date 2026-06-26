@@ -69,4 +69,19 @@ void main() {
       throwsA(isA<UnsupportedBackupVersionException>()),
     );
   });
+
+  test('malformed backup rejection', () async {
+    final database = AppDatabase(NativeDatabase.memory(logStatements: false));
+    addTearDown(database.close);
+    final service = BackupService();
+
+    await expectLater(
+      service.restoreEncryptedBackup(
+        database: database,
+        backupBytes: 'not-json'.codeUnits,
+        backupPassword: 'backup password value',
+      ),
+      throwsA(isA<UnsupportedBackupVersionException>()),
+    );
+  });
 }

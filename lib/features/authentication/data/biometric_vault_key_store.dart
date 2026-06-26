@@ -12,10 +12,11 @@ class BiometricVaultKeyStore {
        _localAuthentication = localAuthentication ?? LocalAuthentication();
 
   static const _keyName = 'vault_key_v1';
+  static const _markerName = 'vault_key_enabled_v1';
   static const _androidOptions = AndroidOptions.biometric(
     enforceBiometrics: true,
     storageNamespace: 'localvault_biometric_key',
-    biometricPromptTitle: 'Unlock LocalVault',
+    biometricPromptTitle: 'Unlock My Pocket Memory',
     biometricPromptSubtitle: 'Authenticate to unlock the vault key',
   );
   static const _iosOptions = IOSOptions(
@@ -50,8 +51,18 @@ class BiometricVaultKeyStore {
         aOptions: _androidOptions,
         iOptions: _iosOptions,
       );
+      await _secureStorage.write(key: _markerName, value: 'true');
     } catch (_) {
+      await clear();
       throw const SecureStorageUnavailableException();
+    }
+  }
+
+  Future<bool> hasSavedVaultKey() async {
+    try {
+      return await _secureStorage.read(key: _markerName) == 'true';
+    } catch (_) {
+      return false;
     }
   }
 
@@ -69,10 +80,13 @@ class BiometricVaultKeyStore {
   }
 
   Future<void> clear() {
-    return _secureStorage.delete(
-      key: _keyName,
-      aOptions: _androidOptions,
-      iOptions: _iosOptions,
-    );
+    return Future.wait([
+      _secureStorage.delete(key: _markerName),
+      _secureStorage.delete(
+        key: _keyName,
+        aOptions: _androidOptions,
+        iOptions: _iosOptions,
+      ),
+    ]).then((_) {});
   }
 }

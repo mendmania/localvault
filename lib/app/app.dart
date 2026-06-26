@@ -13,7 +13,7 @@ class LocalVaultApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(vaultControllerProvider);
     return MaterialApp.router(
-      title: 'LocalVault',
+      title: 'My Pocket Memory',
       debugShowCheckedModeBanner: false,
       theme: buildLocalVaultTheme(Brightness.light),
       darkTheme: buildLocalVaultTheme(Brightness.dark),
